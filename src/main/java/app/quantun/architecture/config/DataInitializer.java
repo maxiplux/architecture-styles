@@ -1,9 +1,9 @@
 package app.quantun.architecture.config;
 
-import app.quantun.architecture.domain.Category;
-import app.quantun.architecture.domain.Product;
-import app.quantun.architecture.repository.CategoryRepository;
-import app.quantun.architecture.repository.ProductRepository;
+import app.quantun.architecture.adapter.out.persistence.entity.CategoryJpaEntity;
+import app.quantun.architecture.adapter.out.persistence.entity.ProductJpaEntity;
+import app.quantun.architecture.adapter.out.persistence.repository.CategoryJpaRepository;
+import app.quantun.architecture.adapter.out.persistence.repository.ProductJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -16,8 +16,8 @@ import java.math.BigDecimal;
 @Slf4j
 public class DataInitializer implements CommandLineRunner {
     
-    private final CategoryRepository categoryRepository;
-    private final ProductRepository productRepository;
+    private final CategoryJpaRepository categoryRepository;
+    private final ProductJpaRepository productRepository;
 
     @Override
     public void run(String... args) {
@@ -32,32 +32,32 @@ public class DataInitializer implements CommandLineRunner {
 
     private void initializeData() {
         // Create Categories
-        Category laptops = createCategory(
+        CategoryJpaEntity laptops = createCategory(
                 "Laptops",
                 "Portable computers for work, gaming, and everyday use"
         );
 
-        Category desktops = createCategory(
+        CategoryJpaEntity desktops = createCategory(
                 "Desktop Computers",
                 "High-performance desktop PCs for home and office"
         );
 
-        Category components = createCategory(
+        CategoryJpaEntity components = createCategory(
                 "Computer Components",
                 "Internal hardware components for building and upgrading PCs"
         );
 
-        Category peripherals = createCategory(
+        CategoryJpaEntity peripherals = createCategory(
                 "Peripherals",
                 "Input and output devices including keyboards, mice, and monitors"
         );
 
-        Category accessories = createCategory(
+        CategoryJpaEntity accessories = createCategory(
                 "Accessories",
                 "Computer accessories and enhancement products"
         );
 
-        Category storage = createCategory(
+        CategoryJpaEntity storage = createCategory(
                 "Storage Devices",
                 "Hard drives, SSDs, and external storage solutions"
         );
@@ -294,8 +294,8 @@ public class DataInitializer implements CommandLineRunner {
         );
     }
 
-    private Category createCategory(String name, String description) {
-        Category category = Category.builder()
+    private CategoryJpaEntity createCategory(String name, String description) {
+        CategoryJpaEntity category = CategoryJpaEntity.builder()
                 .name(name)
                 .description(description)
                 .active(true)
@@ -303,9 +303,9 @@ public class DataInitializer implements CommandLineRunner {
         return categoryRepository.save(category);
     }
 
-    private Product createProduct(String name, String description, BigDecimal price, 
-                                   Integer stock, String imageUrl, Category category) {
-        Product product = Product.builder()
+    private ProductJpaEntity createProduct(String name, String description, BigDecimal price, 
+                                   Integer stock, String imageUrl, CategoryJpaEntity category) {
+        ProductJpaEntity product = ProductJpaEntity.builder()
                 .name(name)
                 .description(description)
                 .price(price)

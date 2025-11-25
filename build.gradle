@@ -38,10 +38,22 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly 'com.h2database:h2'
 
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.14'
+
+    implementation 'org.mapstruct:mapstruct:1.6.3'
+
+    annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
+    // Optional: If using Lombok, add lombok and lombok-mapstruct-binding
+    // compileOnly 'org.projectlombok:lombok:1.18.30' // Use the latest stable version
+    // annotationProcessor 'org.projectlombok:lombok:1.18.30'
+    // annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0' //
 }
 
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+// Configure annotation processing for MapStruct
+// This is important for Gradle to correctly generate mapper implementations

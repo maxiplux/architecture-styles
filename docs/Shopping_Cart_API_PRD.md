@@ -37,7 +37,159 @@ The initial release focuses on three core use cases:
 
 ---
 
-## 3. Technical Stack
+## 3. Architecture
+
+### 3.1 Hexagonal Architecture (Ports & Adapters)
+
+This project implements **Hexagonal Architecture** (also known as Ports and Adapters pattern), which isolates the business logic from external concerns through well-defined boundaries.
+
+#### Core Principles
+
+1. **Domain at the Center**: Pure business logic with zero framework dependencies
+2. **Ports as Boundaries**: Interfaces define application capabilities and needs
+3. **Adapters as Implementations**: Connect ports to external systems (web, database)
+4. **Dependency Rule**: All dependencies point inward toward the domain
+
+#### Layer Structure
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        DRIVING ADAPTERS                          │
+│                     (adapter/in/web/)                            │
+│   Controllers, DTOs, Exception Handlers                          │
+│   - CategoryController, ProductController, OrderController       │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │ uses
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      APPLICATION LAYER                           │
+│                                                                   │
+│  ┌──────────────────────┐        ┌──────────────────────────┐   │
+│  │  application/port/in/│        │  application/service/    │   │
+│  │  (Use Case Interfaces)│◄──────│  (Implementations)       │   │
+│  │  - GetCategoriesUseCase       │  - CategoryServiceImpl   │   │
+│  │  - SearchProductsUseCase      │  - ProductServiceImpl    │   │
+│  │  - CreateOrderUseCase │       │  - OrderServiceImpl      │   │
+│  └──────────────────────┘        └────────┬─────────────────┘   │
+│                                           │ uses                 │
+│                                           ▼                      │
+│                          ┌──────────────────────────────────┐   │
+│                          │  application/port/out/          │   │
+│                          │  (Repository Interfaces)        │   │
+│                          │  - CategoryRepositoryPort       │   │
+│                          │  - ProductRepositoryPort        │   │
+│                          │  - OrderRepositoryPort          │   │
+│                          └────────┬─────────────────────────┘   │
+└───────────────────────────────────┼─────────────────────────────┘
+                                    │ implemented by
+┌───────────────────────────────────▼─────────────────────────────┐
+│                       DRIVEN ADAPTERS                            │
+│                  (adapter/out/persistence/)                      │
+│   JPA Entities, Repositories, Adapters, Mappers                 │
+│   - CategoryJpaEntity, ProductJpaEntity, OrderJpaEntity          │
+│   - CategoryJpaRepository, ProductJpaRepository                  │
+│   - CategoryRepositoryAdapter, ProductRepositoryAdapter          │
+└───────────────────────────────┬─────────────────────────────────┘
+                                │ JDBC
+                                ▼
+                        ┌───────────────┐
+                        │   PostgreSQL  │
+                        └───────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                         DOMAIN LAYER                             │
+│                      (domain/model/)                             │
+│   Pure Business Logic - No Framework Dependencies                │
+│   - Category, Product, Order, OrderItem, OrderStatus            │
+│   - Domain Exceptions: DomainException, InsufficientStockException│
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Package Structure
+
+```
+src/main/java/app/quantun/architecture/
+├── application/                    # APPLICATION LAYER
+│   ├── port/
+│   │   ├── in/                    # Driving ports (use cases)
+│   │   │   ├── GetCategoriesUseCase.java
+│   │   │   ├── SearchProductsUseCase.java
+│   │   │   ├── CreateOrderUseCase.java
+│   │   │   ├── CreateOrderCommand.java
+│   │   │   ├── OrderItemCommand.java
+│   │   │   └── ProductSearchCriteria.java
+│   │   └── out/                   # Driven ports (repositories)
+│   │       ├── CategoryRepositoryPort.java
+│   │       ├── ProductRepositoryPort.java
+│   │       └── OrderRepositoryPort.java
+│   └── service/                   # Use case implementations
+│       ├── CategoryServiceImpl.java
+│       ├── ProductServiceImpl.java
+│       └── OrderServiceImpl.java
+│
+├── domain/                         # DOMAIN LAYER
+│   ├── model/                     # Pure domain entities
+│   │   ├── Category.java
+│   │   ├── Product.java
+│   │   ├── Order.java
+│   │   ├── OrderItem.java
+│   │   ├── OrderStatus.java
+│   │   └── ShippingAddress.java
+│   └── exception/                 # Domain exceptions
+│       ├── DomainException.java
+│       ├── CategoryNotFoundException.java
+│       ├── ProductNotFoundException.java
+│       ├── InsufficientStockException.java
+│       └── ProductNotActiveException.java
+│
+├── adapter/                        # ADAPTERS LAYER
+│   ├── in/web/                    # Driving adapters (currently in web/)
+│   │   ├── CategoryController.java
+│   │   ├── ProductController.java
+│   │   └── OrderController.java
+│   └── out/persistence/           # Driven adapters
+│       ├── entity/                # JPA entities
+│       │   ├── CategoryJpaEntity.java
+│       │   ├── ProductJpaEntity.java
+│       │   ├── OrderJpaEntity.java
+│       │   └── OrderItemJpaEntity.java
+│       ├── repository/            # Spring Data repositories
+│       │   ├── CategoryJpaRepository.java
+│       │   ├── ProductJpaRepository.java
+│       │   ├── OrderJpaRepository.java
+│       │   └── OrderItemJpaRepository.java
+│       └── mapper/                # Entity ↔ Domain mapping
+│           ├── CategoryPersistenceMapper.java
+│           ├── ProductPersistenceMapper.java
+│           ├── OrderPersistenceMapper.java
+│           └── OrderItemPersistenceMapper.java
+│
+└── config/                         # Configuration
+    ├── OpenApiConfig.java
+    └── DataInitializer.java
+```
+
+#### Benefits of This Architecture
+
+1. **Testability**: Domain and application logic can be tested independently without infrastructure
+2. **Flexibility**: Easy to swap databases, web frameworks, or add new adapters (CLI, messaging)
+3. **Clear Boundaries**: Explicit interfaces define what the application does and needs
+4. **Framework Independence**: Domain layer has zero Spring/JPA dependencies
+5. **Maintainability**: Changes in one adapter don't affect others or the core business logic
+
+#### Key Design Decisions
+
+- **Pure Domain Entities**: Domain models have no JPA annotations; separate JPA entities exist in persistence adapter
+- **Port Interfaces**: Use cases are defined as interfaces (ports) in `application/port/in/`
+- **Repository Ports**: Data access needs are defined as interfaces in `application/port/out/`
+- **Mappers**: Separate mappers translate between layers (web DTOs ↔ domain, domain ↔ JPA entities)
+- **Use Case Commands**: Input data for use cases is wrapped in command objects (e.g., `CreateOrderCommand`)
+
+For detailed architecture documentation, see [02-HEXAGONAL-ARCHITECTURE.md](02-HEXAGONAL-ARCHITECTURE.md).
+
+---
+
+## 4. Technical Stack
 
 | Component | Technology |
 |-----------|------------|

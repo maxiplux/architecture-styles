@@ -81,21 +81,41 @@ developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
 
 ## Technical Decisions (TD)
 
-### TD-001: Layered Architecture Pattern
+### TD-001: Hexagonal Architecture (Ports & Adapters)
 
-**Decision:** Implement classic layered architecture with clear separation of concerns.
+**Decision:** Implement Hexagonal Architecture (Ports and Adapters pattern) with clear separation between domain, application, and infrastructure concerns.
 
 **Rationale:**
-- **Controller Layer** - HTTP request handling and response mapping
-- **Service Layer** - Business logic and transaction management
-- **Repository Layer** - Data access abstraction
-- **Domain Layer** - Entity definitions and business rules
+- **Domain Layer** - Pure business logic with zero framework dependencies
+- **Application Layer** - Use case definitions (ports) and implementations (services)
+  - **Driving Ports (Inbound)** - Use case interfaces defining what the application can do
+  - **Driven Ports (Outbound)** - Repository interfaces defining what the application needs
+- **Adapter Layer** - Implementations connecting ports to external systems
+  - **Driving Adapters** - Web controllers, CLI commands (future)
+  - **Driven Adapters** - JPA persistence, external APIs (future)
 
 **Benefits:**
-- Clear separation of concerns
-- Easy to test and maintain
-- Industry-standard pattern widely understood
-- Facilitates parallel development
+- Domain logic testable without infrastructure dependencies
+- Easy to swap databases, web frameworks, or add new adapters
+- Clear boundaries through explicit port interfaces
+- Framework independence in core business logic
+- Changes in one adapter don't affect others
+
+**Package Structure:**
+```
+application/
+├── port/in/          # Use case interfaces
+├── port/out/         # Repository interfaces
+└── service/          # Use case implementations
+
+domain/
+├── model/            # Pure domain entities (no JPA)
+└── exception/        # Domain exceptions
+
+adapter/
+├── in/web/           # Controllers, DTOs, Mappers
+└── out/persistence/  # JPA entities, repositories, adapters
+```
 
 ### TD-002: JPA Specification Pattern for Dynamic Queries
 
@@ -111,10 +131,10 @@ developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
 ```java
 // ProductRepository extends JpaSpecificationExecutor
 Specification<Product> spec = Specification.allOf(
-    ProductSpecifications.hasCategory(categoryId),
-    ProductSpecifications.nameLike(name),
-    ProductSpecifications.priceBetween(minPrice, maxPrice),
-    ProductSpecifications.inStock(inStock)
+    ProductJpaSpecifications.hasCategory(categoryId),
+    ProductJpaSpecifications.nameLike(name),
+    ProductJpaSpecifications.priceBetween(minPrice, maxPrice),
+    ProductJpaSpecifications.inStock(inStock)
 );
 Page<Product> results = productRepository.findAll(spec, pageable);
 ```
@@ -137,7 +157,7 @@ Page<Product> results = productRepository.findAll(spec, pageable);
 
 **Examples:**
 ```java
-public record ProductDTO(Long id, String name, BigDecimal price, ...) {}
+public record ProductResponse(Long id, String name, BigDecimal price, ...) {}
 public record OrderResponse(Long orderId, String status, ...) {}
 ```
 
@@ -297,75 +317,121 @@ private static final BigDecimal TAX_RATE = new BigDecimal("0.08");
 
 ## Architecture
 
-### System Architecture Diagram
+### Hexagonal Architecture Overview
+
+This project implements **Hexagonal Architecture** (Ports and Adapters pattern), which isolates business logic from external concerns through well-defined boundaries.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        Client Layer                          │
-│  (Web Browser, Mobile App, Postman, Swagger UI)             │
-└────────────────────────┬────────────────────────────────────┘
-                         │ HTTP/REST
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Spring Boot Application                   │
-│                                                               │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │              Controller Layer                           │ │
-│  │  • ProductController                                    │ │
-│  │  • CategoryController                                   │ │
-│  │  • OrderController                                      │ │
-│  │  (REST Endpoints, Request/Response Handling)            │ │
-│  └───────────────────────┬────────────────────────────────┘ │
-│                          │                                   │
-│  ┌───────────────────────▼────────────────────────────────┐ │
-│  │              Service Layer                              │ │
-│  │  • ProductService (Dynamic Queries)                     │ │
-│  │  • CategoryService                                      │ │
-│  │  • OrderService (Transaction Management)                │ │
-│  │  (Business Logic, Validation, DTOs)                     │ │
-│  └───────────────────────┬────────────────────────────────┘ │
-│                          │                                   │
-│  ┌───────────────────────▼────────────────────────────────┐ │
-│  │            Repository Layer                             │ │
-│  │  • ProductRepository (+ JpaSpecificationExecutor)       │ │
-│  │  • CategoryRepository                                   │ │
-│  │  • CustomerOrderRepository                              │ │
-│  │  • OrderItemRepository                                  │ │
-│  │  (Data Access, JPA Queries)                             │ │
-│  └───────────────────────┬────────────────────────────────┘ │
-│                          │                                   │
-│  ┌───────────────────────▼────────────────────────────────┐ │
-│  │              Domain Layer                               │ │
-│  │  • Category, Product, CustomerOrder, OrderItem          │ │
-│  │  • OrderStatus Enum                                     │ │
-│  │  (Entity Definitions, Relationships)                    │ │
-│  └─────────────────────────────────────────────────────────┘ │
-│                                                               │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │           Cross-Cutting Concerns                         │ │
-│  │  • GlobalExceptionHandler                                │ │
-│  │  • OpenApiConfig                                         │ │
-│  │  • ProductSpecifications                                 │ │
-│  │  • DataInitializer                                       │ │
-│  └─────────────────────────────────────────────────────────┘ │
-└────────────────────────┬────────────────────────────────────┘
-                         │ JDBC
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   PostgreSQL Database                        │
-│            (Categories, Products, Orders, OrderItems)        │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                        Client Layer                              │
+│         (Web Browser, Mobile App, Postman, Swagger UI)          │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ HTTP/REST
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      DRIVING ADAPTERS                            │
+│                     (adapter/in/web/)                            │
+│                                                                   │
+│  Web Controllers (REST endpoints, DTOs, Exception Handlers)      │
+│  • CategoryController  • ProductController  • OrderController    │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ uses
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     APPLICATION LAYER                            │
+│                                                                   │
+│  ┌──────────────────────┐       ┌──────────────────────────┐    │
+│  │  Driving Ports (In)  │       │   Service Layer          │    │
+│  │  (Use Cases)         │◄──────│   (Implementations)      │    │
+│  │                      │       │                          │    │
+│  │ GetCategoriesUseCase │       │  CategoryServiceImpl     │    │
+│  │ SearchProductsUseCase│       │  ProductServiceImpl      │    │
+│  │ CreateOrderUseCase   │       │  OrderServiceImpl        │    │
+│  └──────────────────────┘       └──────────┬───────────────┘    │
+│                                            │ uses                │
+│                                            ▼                     │
+│                          ┌───────────────────────────────┐      │
+│                          │   Driven Ports (Out)          │      │
+│                          │   (Repository Interfaces)     │      │
+│                          │                               │      │
+│                          │  CategoryRepositoryPort       │      │
+│                          │  ProductRepositoryPort        │      │
+│                          │  OrderRepositoryPort          │      │
+│                          └─────────┬─────────────────────┘      │
+└────────────────────────────────────┼────────────────────────────┘
+                                     │ implemented by
+┌────────────────────────────────────▼────────────────────────────┐
+│                      DRIVEN ADAPTERS                             │
+│                  (adapter/out/persistence/)                      │
+│                                                                   │
+│  Persistence Layer (JPA Entities, Repositories, Mappers)         │
+│  • CategoryJpaEntity, CategoryJpaRepository                      │
+│  • ProductJpaEntity, ProductJpaRepository                        │
+│  • OrderJpaEntity, OrderJpaRepository                            │
+│  • Persistence Mappers (Domain ↔ JPA Entity)                    │
+│  • JPA Specifications (Dynamic Queries)                          │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ JDBC
+                             ▼
+                    ┌────────────────────┐
+                    │   PostgreSQL DB    │
+                    │  (Categories,      │
+                    │   Products,        │
+                    │   Orders,          │
+                    │   OrderItems)      │
+                    └────────────────────┘
+
+        ┌────────────────────────────────────────────┐
+        │            DOMAIN LAYER                    │
+        │         (domain/model/)                    │
+        │                                            │
+        │  Pure Business Logic - No Framework Deps   │
+        │  • Category, Product, Order, OrderItem     │
+        │  • OrderStatus, ShippingAddress            │
+        │  • Domain Exceptions                       │
+        │                                            │
+        │  Used by Application Layer                 │
+        └────────────────────────────────────────────┘
 ```
 
-### Component Interaction Flow
+### Hexagonal Architecture Flow
 
 ```
-Request → Controller → Service → Repository → Database
-                 ↓         ↓
-              DTO Mapping  Business Logic
-                 ↓         ↓
-Response ← Controller ← Service
+HTTP Request
+    ↓
+Controller (Driving Adapter)
+    ↓ calls
+Use Case Port (Driving Port - interface)
+    ↓ implemented by
+Service (Application Layer)
+    ↓ uses Domain Models & calls
+Repository Port (Driven Port - interface)
+    ↓ implemented by
+Repository Adapter (Driven Adapter)
+    ↓ uses
+JPA Entity & JPA Repository
+    ↓
+Database
 ```
+
+### Key Architecture Components
+
+| Layer | Package | Responsibility | Dependencies |
+|-------|---------|----------------|--------------|
+| **Domain** | `domain/model/` | Pure business logic, entities, rules | None (framework-independent) |
+| **Application** | `application/port/` | Use case interfaces (ports) | Domain only |
+| **Application** | `application/service/` | Use case implementations | Domain, ports |
+| **Driving Adapter** | `adapter/in/web/` | REST controllers, DTOs | Application ports |
+| **Driven Adapter** | `adapter/out/persistence/` | JPA entities, repositories | Application ports, Domain |
+| **Config** | `config/` | Spring configuration, data initialization | All layers |
+
+### Architecture Benefits
+
+1. **Testability** - Domain and application logic testable without infrastructure
+2. **Flexibility** - Easy to swap databases or web frameworks
+3. **Maintainability** - Clear boundaries, changes isolated to specific adapters
+4. **Framework Independence** - Core business logic has zero Spring/JPA dependencies
+5. **Extensibility** - Easy to add new adapters (CLI, messaging, GraphQL, etc.)
 
 ---
 
@@ -819,60 +885,124 @@ http://localhost:8080/swagger-ui.html
 
 ## Project Structure
 
+This project follows **Hexagonal Architecture** package organization:
+
 ```
 architecture/
 ├── src/
 │   ├── main/
 │   │   ├── java/app/quantun/architecture/
-│   │   │   ├── config/
+│   │   │   │
+│   │   │   ├── application/                    # APPLICATION LAYER
+│   │   │   │   ├── port/
+│   │   │   │   │   ├── in/                    # Driving Ports (Use Cases)
+│   │   │   │   │   │   ├── GetCategoriesUseCase.java
+│   │   │   │   │   │   ├── SearchProductsUseCase.java
+│   │   │   │   │   │   ├── CreateOrderUseCase.java
+│   │   │   │   │   │   ├── CreateOrderCommand.java
+│   │   │   │   │   │   ├── OrderItemCommand.java
+│   │   │   │   │   │   └── ProductSearchCriteria.java
+│   │   │   │   │   └── out/                   # Driven Ports (Repositories)
+│   │   │   │   │       ├── CategoryRepositoryPort.java
+│   │   │   │   │       ├── ProductRepositoryPort.java
+│   │   │   │   │       └── OrderRepositoryPort.java
+│   │   │   │   └── service/                   # Use Case Implementations
+│   │   │   │       ├── CategoryServiceImpl.java
+│   │   │   │       ├── ProductServiceImpl.java
+│   │   │   │       └── OrderServiceImpl.java
+│   │   │   │
+│   │   │   ├── domain/                         # DOMAIN LAYER
+│   │   │   │   ├── model/                     # Pure Domain Entities
+│   │   │   │   │   ├── Category.java
+│   │   │   │   │   ├── Product.java
+│   │   │   │   │   ├── Order.java
+│   │   │   │   │   ├── OrderItem.java
+│   │   │   │   │   ├── OrderStatus.java
+│   │   │   │   │   └── ShippingAddress.java
+│   │   │   │   └── exception/                 # Domain Exceptions
+│   │   │   │       ├── DomainException.java
+│   │   │   │       ├── CategoryNotFoundException.java
+│   │   │   │       ├── ProductNotFoundException.java
+│   │   │   │       ├── InsufficientStockException.java
+│   │   │   │       └── ProductNotActiveException.java
+│   │   │   │
+│   │   │   ├── adapter/                        # ADAPTERS LAYER
+│   │   │   │   ├── in/web/                    # Driving Adapters (Controllers)
+│   │   │   │   │   ├── CategoryController.java
+│   │   │   │   │   ├── ProductController.java
+│   │   │   │   │   ├── OrderController.java
+│   │   │   │   │   ├── GlobalExceptionHandler.java
+│   │   │   │   │   ├── dto/                   # Data Transfer Objects
+│   │   │   │   │   │   ├── CategoryResponse.java
+│   │   │   │   │   │   ├── ProductResponse.java
+│   │   │   │   │   │   ├── ProductFilterRequest.java
+│   │   │   │   │   │   ├── OrderCreateRequest.java
+│   │   │   │   │   │   ├── OrderResponse.java
+│   │   │   │   │   │   ├── OrderItemRequest.java
+│   │   │   │   │   │   ├── OrderItemResponse.java
+│   │   │   │   │   │   └── ShippingAddressRequest.java
+│   │   │   │   │   └── mapper/                # Web Mappers (DTO ↔ Domain)
+│   │   │   │   │       ├── CategoryWebMapper.java
+│   │   │   │   │       ├── ProductWebMapper.java
+│   │   │   │   │       └── OrderWebMapper.java
+│   │   │   │   └── out/persistence/           # Driven Adapters
+│   │   │   │       ├── entity/                # JPA Entities
+│   │   │   │       │   ├── CategoryJpaEntity.java
+│   │   │   │       │   ├── ProductJpaEntity.java
+│   │   │   │       │   ├── OrderJpaEntity.java
+│   │   │   │       │   └── OrderItemJpaEntity.java
+│   │   │   │       ├── repository/            # Spring Data JPA Repositories
+│   │   │   │       │   ├── CategoryJpaRepository.java
+│   │   │   │       │   ├── ProductJpaRepository.java
+│   │   │   │       │   ├── OrderJpaRepository.java
+│   │   │   │       │   └── OrderItemJpaRepository.java
+│   │   │   │       ├── adapter/               # Adapter Implementations
+│   │   │   │       │   ├── CategoryRepositoryAdapter.java
+│   │   │   │       │   ├── ProductRepositoryAdapter.java
+│   │   │   │       │   └── OrderRepositoryAdapter.java
+│   │   │   │       ├── mapper/                # Persistence Mappers (Domain ↔ JPA Entity)
+│   │   │   │       │   ├── CategoryPersistenceMapper.java
+│   │   │   │       │   ├── ProductPersistenceMapper.java
+│   │   │   │       │   ├── OrderPersistenceMapper.java
+│   │   │   │       │   └── OrderItemPersistenceMapper.java
+│   │   │   │       └── specification/         # JPA Specifications (Dynamic Queries)
+│   │   │   │           └── ProductJpaSpecifications.java
+│   │   │   │
+│   │   │   ├── config/                        # Configuration
 │   │   │   │   ├── DataInitializer.java
 │   │   │   │   └── OpenApiConfig.java
-│   │   │   ├── domain/
-│   │   │   │   ├── Category.java
-│   │   │   │   ├── Product.java
-│   │   │   │   ├── CustomerOrder.java
-│   │   │   │   ├── OrderItem.java
-│   │   │   │   └── OrderStatus.java
-│   │   │   ├── dto/
-│   │   │   │   ├── CategoryDTO.java
-│   │   │   │   ├── ProductDTO.java
-│   │   │   │   ├── ProductFilter.java
-│   │   │   │   └── order/
-│   │   │   │       ├── OrderCreateRequest.java
-│   │   │   │       ├── OrderItemRequest.java
-│   │   │   │       ├── OrderItemResponse.java
-│   │   │   │       ├── OrderResponse.java
-│   │   │   │       └── ShippingAddressDTO.java
-│   │   │   ├── exception/
-│   │   │   │   ├── GlobalExceptionHandler.java
-│   │   │   │   ├── NotFoundException.java
-│   │   │   │   ├── BadRequestException.java
-│   │   │   │   └── ConflictException.java
-│   │   │   ├── repository/
-│   │   │   │   ├── CategoryRepository.java
-│   │   │   │   ├── ProductRepository.java
-│   │   │   │   ├── CustomerOrderRepository.java
-│   │   │   │   └── OrderItemRepository.java
-│   │   │   ├── service/
-│   │   │   │   ├── CategoryService.java
-│   │   │   │   ├── ProductService.java
-│   │   │   │   └── OrderService.java
-│   │   │   ├── spec/
-│   │   │   │   └── ProductSpecifications.java
-│   │   │   ├── web/
-│   │   │   │   ├── CategoryController.java
-│   │   │   │   ├── ProductController.java
-│   │   │   │   └── OrderController.java
-│   │   │   └── ArchitectureApplication.java
+│   │   │   │
+│   │   │   └── ArchitectureApplication.java   # Spring Boot Main Class
+│   │   │
 │   │   └── resources/
 │   │       └── application.properties
+│   │
 │   └── test/
+│       └── java/app/quantun/architecture/
+│           └── ArchitectureApplicationTests.java
+│
 ├── docs/
-│   └── Shopping_Cart_API_PRD.md
-├── build.gradle
-├── compose.yaml
-└── README.md
+│   ├── Shopping_Cart_API_PRD.md              # Product Requirements Document
+│   └── 02-HEXAGONAL-ARCHITECTURE.md          # Detailed Architecture Guide
+│
+├── build.gradle                               # Gradle Build Configuration
+├── compose.yaml                               # Docker Compose (PostgreSQL)
+└── README.md                                  # This File
 ```
+
+### Package Organization by Layer
+
+| Package | Layer | Description |
+|---------|-------|-------------|
+| `application/port/in/` | Application | Use case interfaces (driving ports) |
+| `application/port/out/` | Application | Repository interfaces (driven ports) |
+| `application/service/` | Application | Use case implementations |
+| `domain/model/` | Domain | Pure business entities (no JPA) |
+| `domain/exception/` | Domain | Domain-specific exceptions |
+| `adapter/out/persistence/` | Infrastructure | JPA entities, repositories, adapters |
+| `adapter/in/web/` | Infrastructure | REST controllers (driving adapter) |
+| `adapter/in/web/dto/` | Infrastructure | API request/response objects |
+| `config/` | Infrastructure | Spring configuration |
 
 ---
 
