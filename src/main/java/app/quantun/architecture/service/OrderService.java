@@ -7,6 +7,7 @@ import app.quantun.architecture.domain.Product;
 import app.quantun.architecture.dto.order.*;
 import app.quantun.architecture.exception.BadRequestException;
 import app.quantun.architecture.exception.ConflictException;
+import app.quantun.architecture.mapper.OrderMapper;
 import app.quantun.architecture.repository.CustomerOrderRepository;
 import app.quantun.architecture.repository.ProductRepository;
 import jakarta.transaction.Transactional;
@@ -25,6 +26,7 @@ public class OrderService {
 
     private final ProductRepository productRepository;
     private final CustomerOrderRepository orderRepository;
+    private final OrderMapper orderMapper;
 
     @Transactional
     public OrderResponse createOrder(OrderCreateRequest request) {
@@ -95,24 +97,6 @@ public class OrderService {
         }
 
         // Build response
-        List<OrderItemResponse> itemResponses = saved.getItems().stream()
-                .map(oi -> new OrderItemResponse(
-                        oi.getProduct().getId(),
-                        oi.getProduct().getName(),
-                        oi.getQuantity(),
-                        oi.getUnitPrice(),
-                        oi.getSubtotal()
-                ))
-                .toList();
-
-        return new OrderResponse(
-                saved.getId(),
-                saved.getStatus().name(),
-                itemResponses,
-                saved.getSubtotal(),
-                saved.getTax(),
-                saved.getTotal(),
-                saved.getCreatedAt()
-        );
+        return orderMapper.toResponse(saved);
     }
 }
