@@ -1,16 +1,17 @@
 # Product Requirements Document
 ## Shopping Cart REST API
 
-**Project:** `app.quantun.architecture`  
-**Version:** 0.0.1-SNAPSHOT  
-**Date:** 2024-11-24  
-**Status:** Draft
+**Project:** `app.quantun.architecture`
+**Version:** 2.0.0
+**Date:** 2025-11-30
+**Status:** Active
+**Architecture:** Clean Architecture (Uncle Bob)
 
 ---
 
 ## 1. Executive Summary
 
-This document outlines the requirements for a Shopping Cart REST API built using Spring Boot. The API provides core e-commerce functionality including product catalog management, category organization, and order processing. This project serves as an architectural exploration example, focusing on clean design patterns and best practices without authentication/authorization complexity.
+This document outlines the requirements for a Shopping Cart REST API built using Spring Boot following **Clean Architecture** principles as defined by Robert C. Martin (Uncle Bob). The API provides core e-commerce functionality including product catalog management, category organization, and order processing. This project demonstrates the separation of concerns through concentric circles, dependency inversion, and framework independence.
 
 ---
 
@@ -50,7 +51,9 @@ The initial release focuses on three core use cases:
 | Validation | Spring Boot Starter Validation |
 | Build Tool | Gradle |
 | Utilities | Lombok |
+| Object Mapping | MapStruct 1.5.5 |
 | Containerization | Docker Compose |
+| Architecture Testing | ArchUnit 1.2.1 |
 
 ### 3.1 Key Dependencies
 
@@ -63,18 +66,37 @@ implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui'
 
 // Validation
 implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+// Object Mapping (for Clean Architecture layer transformations)
+implementation 'org.mapstruct:mapstruct:1.5.5.Final'
+annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
+annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
+
+// Architecture Testing
+testImplementation 'com.tngtech.archunit:archunit-junit5:1.2.1'
 ```
 
-### 3.2 JpaSpecificationExecutor
+### 3.2 Clean Architecture Layers
 
-Repositories will extend `JpaSpecificationExecutor<T>` to support dynamic query building using the Specification pattern. This enables:
+The application follows Clean Architecture with four concentric circles:
+
+| Layer | Package | Description |
+|-------|---------|-------------|
+| **Entities** | `entity/` | Enterprise-wide business rules. Pure domain objects with business logic, NO framework dependencies |
+| **Use Cases** | `usecase/` | Application-specific business rules. Interactors orchestrate data flow to/from entities |
+| **Interface Adapters** | `interface_adapter/` | Controllers, Presenters, Gateway implementations. Convert data between use cases and external agencies |
+| **Frameworks & Drivers** | `framework/` | JPA entities, repositories, Spring configuration. The outermost layer with all framework code |
+
+### 3.3 JpaSpecificationExecutor
+
+JPA Repositories in the Framework layer extend `JpaSpecificationExecutor<T>` to support dynamic query building using the Specification pattern. This enables:
 
 - Complex filtering without multiple repository methods
 - Runtime query composition
 - Type-safe criteria building
 - Reusable filter predicates
 
-### 3.3 Docker Compose Configuration
+### 3.4 Docker Compose Configuration
 
 ```yaml
 services:
@@ -335,47 +357,74 @@ GET /api/v1/products?name=wireless&page=0&size=10
 
 ## 5. Data Model
 
-### 5.1 Entity Relationship Diagram
+### 5.1 Clean Architecture Entity Separation
+
+In Clean Architecture, we distinguish between **Domain Entities** (innermost layer) and **Data Entities** (framework layer):
+
+| Type | Location | Purpose |
+|------|----------|---------|
+| **Domain Entities** | `entity/` | Pure business logic, no framework dependencies |
+| **Data Entities** | `framework/persistence/entity/` | JPA annotations, database mapping |
+
+### 5.2 Domain Entity Relationship Diagram
 
 ```
-┌──────────────┐       ┌──────────────┐
-│   Category   │       │   Product    │
-├──────────────┤       ├──────────────┤
-│ id (PK)      │───┐   │ id (PK)      │
-│ name         │   │   │ name         │
-│ description  │   └──►│ categoryId   │
-│ active       │       │ price        │
-│ createdAt    │       │ stock        │
-└──────────────┘       │ description  │
-                       │ imageUrl     │
-                       │ active       │
-                       └──────────────┘
-                              │
-                              │
-┌──────────────┐       ┌──────────────┐
-│    Order     │       │  OrderItem   │
-├──────────────┤       ├──────────────┤
-│ id (PK)      │───┐   │ id (PK)      │
-│ customerId   │   │   │ orderId (FK) │◄─┘
-│ status       │   └──►│ productId    │
-│ subtotal     │       │ quantity     │
-│ tax          │       │ unitPrice    │
-│ total        │       │ subtotal     │
-│ createdAt    │       └──────────────┘
-│ shippingAddr │
-└──────────────┘
+┌──────────────────┐       ┌──────────────────┐
+│  Category        │       │  Product         │
+│  (Domain Entity) │       │  (Domain Entity) │
+├──────────────────┤       ├──────────────────┤
+│ id               │───┐   │ id               │
+│ name             │   │   │ name             │
+│ description      │   └──►│ category         │
+│ active           │       │ price            │
+│ createdAt        │       │ stock            │
+│                  │       │ description      │
+│ + isActive()     │       │ imageUrl         │
+│                  │       │ active           │
+└──────────────────┘       │                  │
+                           │ + isAvailable()  │
+                           │ + canFulfill()   │
+                           │ + reduceStock()  │
+                           └──────────────────┘
+                                  │
+                                  │
+┌──────────────────┐       ┌──────────────────┐
+│  Order           │       │  OrderItem       │
+│  (Domain Entity) │       │  (Domain Entity) │
+├──────────────────┤       ├──────────────────┤
+│ id               │───┐   │ id               │
+│ customerId       │   │   │ productId        │
+│ status           │   └──►│ productName      │
+│ items            │       │ quantity         │
+│ subtotal         │       │ unitPrice        │
+│ tax              │       │ subtotal         │
+│ total            │       │                  │
+│ createdAt        │       │ + getSubtotal()  │
+│ shippingAddress  │       └──────────────────┘
+│                  │
+│ + createNew()    │       ┌──────────────────┐
+│ + confirm()      │       │ ShippingAddress  │
+│ + cancel()       │       │ (Value Object)   │
+└──────────────────┘       ├──────────────────┤
+                           │ street           │
+                           │ city             │
+                           │ state            │
+                           │ zipCode          │
+                           │ country          │
+                           └──────────────────┘
 ```
 
-### 5.2 Entity Definitions
+### 5.3 Entity Definitions
 
-| Entity | Key Fields | Description |
-|--------|------------|-------------|
-| Category | id, name, description, active | Product categories for organizing the catalog |
-| Product | id, name, price, categoryId, stock | Items available for purchase |
-| Order | id, customerId, status, total, createdAt | Customer purchase transactions |
-| OrderItem | id, orderId, productId, quantity, unitPrice | Line items within an order |
+| Entity | Layer | Key Fields | Description |
+|--------|-------|------------|-------------|
+| Category | Domain | id, name, description, active | Product categories with business logic |
+| Product | Domain | id, name, price, category, stock | Items with availability and stock logic |
+| Order | Domain | id, customerId, status, items, total | Order with calculation and state logic |
+| OrderItem | Domain | productId, quantity, unitPrice | Line items with subtotal calculation |
+| ShippingAddress | Domain | street, city, state, zipCode, country | Value Object for address |
 
-### 5.3 Order Status Enum
+### 5.4 Order Status Enum
 
 | Status | Description |
 |--------|-------------|
@@ -385,20 +434,37 @@ GET /api/v1/products?name=wireless&page=0&size=10
 | DELIVERED | Order delivered to customer |
 | CANCELLED | Order was cancelled |
 
-### 5.4 Product Filter DTO
+### 5.5 Use Case Input/Output Data
 
-For dynamic queries using JpaSpecificationExecutor:
+For Clean Architecture, use cases define their own input and output data structures:
 
 ```java
-@Data
-public class ProductFilter {
-    private Long categoryId;
-    private String name;
-    private BigDecimal minPrice;
-    private BigDecimal maxPrice;
-    private Boolean inStock;
-    private Boolean active = true;
-}
+// Input Data (Use Case Layer)
+public record ProductSearchInputData(
+    Long categoryId,
+    String name,
+    BigDecimal minPrice,
+    BigDecimal maxPrice,
+    Boolean inStock,
+    Boolean active,
+    int page,
+    int size,
+    String sortBy,
+    String sortDirection
+) {}
+
+// Output Data (Use Case Layer)
+public record ProductOutputData(
+    Long id,
+    String name,
+    String description,
+    BigDecimal price,
+    Long categoryId,
+    String categoryName,
+    Integer stock,
+    String imageUrl,
+    boolean active
+) {}
 ```
 
 ---
@@ -414,16 +480,26 @@ public class ProductFilter {
 ### 6.2 Reliability
 
 - Transactional integrity for order creation (all-or-nothing)
+- Transaction boundaries defined at Use Case (Interactor) level
 - Proper error handling with meaningful error messages
 - Graceful degradation under high load
 
 ### 6.3 Maintainability
 
-- Clean architecture with separation of concerns
+- Clean Architecture with strict dependency rules
+- Entities layer has NO framework dependencies
+- Use Cases layer has NO Spring annotations (except @Transactional)
 - Comprehensive logging using SLF4J
 - API versioning in URL path (`/api/v1/`)
 
-### 6.4 Observability
+### 6.4 Testability
+
+- Entity layer tests require NO mocking (pure unit tests)
+- Use Case tests mock only Gateway interfaces
+- Interface Adapter tests use Spring MockMvc
+- Architecture tests with ArchUnit enforce dependency rules
+
+### 6.5 Observability
 
 - Spring Boot Actuator endpoints enabled for health checks
 - Structured logging for debugging
@@ -480,7 +556,10 @@ public class ProductFilter {
 
 ### 9.2 OpenAPI Configuration
 
+Located in `framework/config/`:
+
 ```java
+// framework/config/OpenApiConfig.java
 @Configuration
 public class OpenApiConfig {
     
@@ -489,21 +568,25 @@ public class OpenApiConfig {
         return new OpenAPI()
             .info(new Info()
                 .title("Shopping Cart API")
-                .version("1.0.0")
-                .description("REST API for shopping cart operations"));
+                .version("2.0.0")
+                .description("REST API for shopping cart operations - Clean Architecture"));
     }
 }
 ```
 
 ### 9.3 Controller Annotations
 
-All endpoints should be documented using SpringDoc annotations:
+Controllers in the Interface Adapter layer use SpringDoc annotations:
 
 ```java
+// interface_adapter/controller/ProductController.java
 @Tag(name = "Products", description = "Product catalog operations")
 @RestController
 @RequestMapping("/api/v1/products")
 public class ProductController {
+
+    private final SearchProductsUseCase searchProductsUseCase;
+    private final ProductPresenter presenter;
 
     @Operation(summary = "Get products with dynamic filtering")
     @ApiResponses({
@@ -511,13 +594,21 @@ public class ProductController {
         @ApiResponse(responseCode = "404", description = "Category not found")
     })
     @GetMapping
-    public Page<ProductDTO> getProducts(
-        @Parameter(description = "Filter by category ID") 
+    public PageResponseModel<ProductResponseModel> getProducts(
+        @Parameter(description = "Filter by category ID")
         @RequestParam(required = false) Long categoryId,
-        @Parameter(description = "Filter by product name (partial match)") 
+        @Parameter(description = "Filter by product name (partial match)")
         @RequestParam(required = false) String name,
         @ParameterObject Pageable pageable) {
-        // ...
+        
+        // Map to Use Case Input Data
+        ProductSearchInputData inputData = new ProductSearchInputData(...);
+        
+        // Execute Use Case
+        PagedProductOutputData outputData = searchProductsUseCase.execute(inputData);
+        
+        // Present Result
+        return presenter.present(outputData);
     }
 }
 ```
@@ -549,19 +640,50 @@ public class ProductController {
 
 ---
 
-## 12. Assumptions & Constraints
+## 12. Clean Architecture Guidelines
+
+### 12.1 Dependency Rule
+
+Dependencies must only point inward. Inner layers know nothing about outer layers:
+
+```
+Entities ← Use Cases ← Interface Adapters ← Frameworks & Drivers
+```
+
+### 12.2 Layer Responsibilities
+
+| Layer | Responsibilities | Allowed Dependencies |
+|-------|------------------|---------------------|
+| **Entities** | Business rules, validation | None (pure Java) |
+| **Use Cases** | Application logic, orchestration | Entities only |
+| **Interface Adapters** | Data conversion, HTTP handling | Use Cases, Entities |
+| **Frameworks** | Database, Spring, external libs | All inner layers |
+
+### 12.3 Key Implementation Rules
+
+1. **Entities Are NOT JPA Entities** - Separate domain entities from persistence entities
+2. **Use Cases Return Output Data** - Not domain entities directly
+3. **Controllers Use Presenters** - For transforming output data to response models
+4. **Gateways Are Interfaces** - Defined in use case layer, implemented in interface adapter layer
+5. **Interactors Have No Annotations** - Pure Java classes, no Spring annotations (except @Transactional)
+6. **BeanConfiguration Wires Use Cases** - Manual bean creation in config class
+
+---
+
+## 13. Assumptions & Constraints
 
 ### Assumptions
 
 - Customer IDs are provided by the client (no user management in scope)
 - Product images are hosted externally (URL reference only)
-- Tax calculation uses a fixed rate for simplicity
+- Tax calculation uses a fixed rate (8%) in Order entity
 
 ### Constraints
 
 - No authentication/authorization layer
 - Single-region deployment
 - No caching layer in initial implementation
+- Strict adherence to Clean Architecture dependency rules
 
 ---
 
@@ -570,3 +692,4 @@ public class ProductController {
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2024-11-24 | API Dev Team | Initial draft |
+| 2.0 | 2025-11-30 | API Dev Team | Updated for Clean Architecture |

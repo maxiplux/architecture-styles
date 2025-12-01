@@ -1,8 +1,9 @@
 # Shopping Cart REST API
 
-**Version:** 1.0.0  
-**Project:** `app.quantun.architecture`  
-**Last Updated:** 2025-11-24
+**Version:** 2.0.0
+**Project:** `app.quantun.architecture`
+**Last Updated:** 2025-11-30
+**Architecture:** Clean Architecture (Uncle Bob)
 
 ---
 
@@ -10,25 +11,31 @@
 
 1. [Overview](#overview)
 2. [Technical Stack](#technical-stack)
-3. [Technical Decisions (TD)](#technical-decisions-td)
-4. [Architecture](#architecture)
-5. [Database Schema](#database-schema)
-6. [API Endpoints](#api-endpoints)
-7. [Sequence Diagrams](#sequence-diagrams)
-8. [Getting Started](#getting-started)
-9. [API Documentation](#api-documentation)
+3. [Clean Architecture Overview](#clean-architecture-overview)
+4. [Technical Decisions (TD)](#technical-decisions-td)
+5. [Architecture](#architecture)
+6. [Database Schema](#database-schema)
+7. [API Endpoints](#api-endpoints)
+8. [Sequence Diagrams](#sequence-diagrams)
+9. [Getting Started](#getting-started)
+10. [API Documentation](#api-documentation)
+11. [Testing Strategy](#testing-strategy)
 
 ---
 
 ## Overview
 
-The Shopping Cart REST API is a comprehensive backend solution for an e-commerce platform built with Spring Boot. This project demonstrates clean architecture principles, modern Java patterns, and best practices for building scalable REST APIs.
+The Shopping Cart REST API is a comprehensive backend solution for an e-commerce platform built with Spring Boot following **Clean Architecture** principles as defined by Robert C. Martin (Uncle Bob). This project demonstrates the separation of concerns through concentric circles, dependency inversion, and framework independence.
 
 ### Key Features
 
+- **Clean Architecture Implementation** - Strict dependency rule with concentric circles
+- **Domain-Driven Design** - Rich domain entities with business logic
 - **Product Catalog Management** - Browse and search products with advanced filtering
 - **Category Organization** - Hierarchical product categorization
 - **Order Processing** - Complete order lifecycle management with inventory control
+- **Use Case Driven** - Application logic encapsulated in interactors
+- **Framework Independence** - Core business logic free from framework dependencies
 - **Dynamic Query Builder** - JPA Specification pattern for flexible filtering
 - **OpenAPI Documentation** - Interactive Swagger UI for API exploration
 - **Containerized Infrastructure** - Docker Compose for PostgreSQL database
@@ -71,31 +78,89 @@ runtimeOnly 'org.postgresql:postgresql'
 // API Documentation
 implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.14'
 
+// Object Mapping (for Clean Architecture layer transformations)
+implementation 'org.mapstruct:mapstruct:1.5.5.Final'
+annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
+annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
+
 // Development Tools
 compileOnly 'org.projectlombok:lombok'
 developmentOnly 'org.springframework.boot:spring-boot-devtools'
 developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
+
+// Testing
+testImplementation 'org.springframework.boot:spring-boot-starter-test'
+testImplementation 'com.tngtech.archunit:archunit-junit5:1.2.1'
 ```
+
+---
+
+## Clean Architecture Overview
+
+This project implements Clean Architecture as defined by Robert C. Martin. The key principle is the **Dependency Rule**: source code dependencies must point inward, toward higher-level policies.
+
+### The Concentric Circles
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│    FRAMEWORKS & DRIVERS (outermost)                                         │
+│    ┌─────────────────────────────────────────────────────────────────────┐  │
+│    │                                                                     │  │
+│    │   INTERFACE ADAPTERS                                                │  │
+│    │   ┌─────────────────────────────────────────────────────────────┐   │  │
+│    │   │                                                             │   │  │
+│    │   │   USE CASES (Application Business Rules)                    │   │  │
+│    │   │   ┌─────────────────────────────────────────────────────┐   │   │  │
+│    │   │   │                                                     │   │   │  │
+│    │   │   │   ENTITIES (Enterprise Business Rules)              │   │   │  │
+│    │   │   │                                                     │   │   │  │
+│    │   │   └─────────────────────────────────────────────────────┘   │   │  │
+│    │   │                                                             │   │  │
+│    │   └─────────────────────────────────────────────────────────────┘   │  │
+│    │                                                                     │  │
+│    └─────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Layer Descriptions
+
+| Layer | Package | Description |
+|-------|---------|-------------|
+| **Entities** | `entity/` | Enterprise-wide business rules. Pure domain objects with business logic, NO framework dependencies |
+| **Use Cases** | `usecase/` | Application-specific business rules. Interactors orchestrate data flow to/from entities |
+| **Interface Adapters** | `interface_adapter/` | Controllers, Presenters, Gateway implementations. Convert data between use cases and external agencies |
+| **Frameworks & Drivers** | `framework/` | JPA entities, repositories, Spring configuration. The outermost layer with all framework code |
+
+### Core Principles
+
+1. **Dependency Rule** - Dependencies only point inward. Inner layers know nothing about outer layers.
+2. **Entities** - Enterprise-wide business rules with validation and domain logic.
+3. **Use Cases** - Application-specific business rules via Interactors.
+4. **Interface Adapters** - Convert data between use cases/entities and external agencies.
+5. **Frameworks & Drivers** - The outermost layer containing frameworks and tools.
+6. **Dependency Inversion** - High-level modules don't depend on low-level modules.
 
 ---
 
 ## Technical Decisions (TD)
 
-### TD-001: Layered Architecture Pattern
+### TD-001: Clean Architecture Pattern
 
-**Decision:** Implement classic layered architecture with clear separation of concerns.
+**Decision:** Implement Clean Architecture with strict dependency rules and concentric circles.
 
 **Rationale:**
-- **Controller Layer** - HTTP request handling and response mapping
-- **Service Layer** - Business logic and transaction management
-- **Repository Layer** - Data access abstraction
-- **Domain Layer** - Entity definitions and business rules
+- **Entities Layer** - Pure domain objects with business logic, no framework dependencies
+- **Use Cases Layer** - Application business rules via Interactors with Input/Output boundaries
+- **Interface Adapters Layer** - Controllers, Presenters, and Gateway implementations
+- **Frameworks & Drivers Layer** - JPA entities, repositories, Spring configuration
 
 **Benefits:**
-- Clear separation of concerns
-- Easy to test and maintain
-- Industry-standard pattern widely understood
-- Facilitates parallel development
+- Framework independence - business logic is not tied to Spring
+- Testability - inner layers can be tested without infrastructure
+- Clear separation of concerns with explicit boundaries
+- Flexibility to change frameworks without affecting business logic
 
 ### TD-002: JPA Specification Pattern for Dynamic Queries
 
@@ -174,31 +239,40 @@ public record OrderResponse(Long orderId, String status, ...) {}
 private BigDecimal price;
 ```
 
-### TD-006: Optimistic Locking Strategy
+### TD-006: Transaction Boundaries on Interactors
 
-**Decision:** Use transaction boundaries without explicit pessimistic locks for order creation.
+**Decision:** Use `@Transactional` on Interactor methods (Use Case implementations).
 
 **Rationale:**
-- `@Transactional` ensures ACID properties
+- Transaction boundaries are defined at the use case level
+- Interactors orchestrate the complete business operation
 - Stock decrement after order creation within same transaction
 - Rollback on any exception
-- Acceptable for initial implementation
+
+**Implementation:**
+```java
+// usecase/order/CreateOrderInteractor.java
+@Transactional
+public OrderOutputData execute(CreateOrderInputData input) {
+    // All operations within single transaction
+}
+```
 
 **Future Enhancement:** Consider pessimistic locking or optimistic locking with `@Version` for high-concurrency scenarios.
 
 ### TD-007: Global Exception Handling
 
-**Decision:** Centralized exception handling using `@RestControllerAdvice`.
+**Decision:** Centralized exception handling using `@RestControllerAdvice` in the Framework layer.
 
 **Rationale:**
 - Consistent error response format across all endpoints
 - Separation of error handling from business logic
 - Single source of truth for error responses
 
-**Custom Exceptions:**
-- `NotFoundException` → 404
-- `BadRequestException` → 400
-- `ConflictException` → 409 (business rule violations)
+**Custom Exceptions (in `shared/exception/`):**
+- `EntityNotFoundException` → 404
+- `ValidationException` → 400
+- `BusinessRuleException` → 409 (business rule violations)
 
 ### TD-008: Enum for Order Status
 
@@ -297,74 +371,109 @@ private static final BigDecimal TAX_RATE = new BigDecimal("0.08");
 
 ## Architecture
 
-### System Architecture Diagram
+### Clean Architecture Diagram
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        Client Layer                          │
-│  (Web Browser, Mobile App, Postman, Swagger UI)             │
-└────────────────────────┬────────────────────────────────────┘
-                         │ HTTP/REST
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Spring Boot Application                   │
-│                                                               │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │              Controller Layer                           │ │
-│  │  • ProductController                                    │ │
-│  │  • CategoryController                                   │ │
-│  │  • OrderController                                      │ │
-│  │  (REST Endpoints, Request/Response Handling)            │ │
-│  └───────────────────────┬────────────────────────────────┘ │
-│                          │                                   │
-│  ┌───────────────────────▼────────────────────────────────┐ │
-│  │              Service Layer                              │ │
-│  │  • ProductService (Dynamic Queries)                     │ │
-│  │  • CategoryService                                      │ │
-│  │  • OrderService (Transaction Management)                │ │
-│  │  (Business Logic, Validation, DTOs)                     │ │
-│  └───────────────────────┬────────────────────────────────┘ │
-│                          │                                   │
-│  ┌───────────────────────▼────────────────────────────────┐ │
-│  │            Repository Layer                             │ │
-│  │  • ProductRepository (+ JpaSpecificationExecutor)       │ │
-│  │  • CategoryRepository                                   │ │
-│  │  • CustomerOrderRepository                              │ │
-│  │  • OrderItemRepository                                  │ │
-│  │  (Data Access, JPA Queries)                             │ │
-│  └───────────────────────┬────────────────────────────────┘ │
-│                          │                                   │
-│  ┌───────────────────────▼────────────────────────────────┐ │
-│  │              Domain Layer                               │ │
-│  │  • Category, Product, CustomerOrder, OrderItem          │ │
-│  │  • OrderStatus Enum                                     │ │
-│  │  (Entity Definitions, Relationships)                    │ │
-│  └─────────────────────────────────────────────────────────┘ │
-│                                                               │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │           Cross-Cutting Concerns                         │ │
-│  │  • GlobalExceptionHandler                                │ │
-│  │  • OpenApiConfig                                         │ │
-│  │  • ProductSpecifications                                 │ │
-│  │  • DataInitializer                                       │ │
-│  └─────────────────────────────────────────────────────────┘ │
-└────────────────────────┬────────────────────────────────────┘
-                         │ JDBC
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   PostgreSQL Database                        │
-│            (Categories, Products, Orders, OrderItems)        │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                          FRAMEWORKS & DRIVERS                                    │
+│                                                                                  │
+│   framework/persistence/         framework/web/           framework/config/      │
+│   - JPA Data Entities           - Exception Handler      - BeanConfiguration     │
+│   - JPA Repositories            - OpenApiConfig          - DataInitializer       │
+│   - Data Mappers                                                                 │
+│   - Specifications                                                               │
+│                                                                                  │
+└───────────────────────────────────────┬─────────────────────────────────────────┘
+                                        │ implements
+                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                          INTERFACE ADAPTERS                                      │
+│                                                                                  │
+│   Controllers               Presenters               Gateway Impls               │
+│   - CategoryController      - CategoryPresenter      - CategoryGatewayImpl       │
+│   - ProductController       - ProductPresenter       - ProductGatewayImpl        │
+│   - OrderController         - OrderPresenter         - OrderGatewayImpl          │
+│                                                                                  │
+│   DTOs (Request/Response Models)                                                 │
+│   - CategoryResponseModel                                                        │
+│   - OrderCreateRequestModel                                                      │
+│                                                                                  │
+└───────────────────────────────────────┬─────────────────────────────────────────┘
+                                        │ uses
+                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              USE CASES                                           │
+│                                                                                  │
+│   Input Boundaries (Interfaces)        Output Boundaries (Gateways)              │
+│   - GetAllCategoriesUseCase           - CategoryGateway                          │
+│   - SearchProductsUseCase             - ProductGateway                           │
+│   - CreateOrderUseCase                - OrderGateway                             │
+│                                                                                  │
+│   Interactors (Implementations)        Input/Output Data                         │
+│   - GetAllCategoriesInteractor        - ProductSearchInputData                   │
+│   - SearchProductsInteractor          - CategoryOutputData                       │
+│   - CreateOrderInteractor             - OrderOutputData                          │
+│                                                                                  │
+└───────────────────────────────────────┬─────────────────────────────────────────┘
+                                        │ uses
+                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              ENTITIES                                            │
+│                                                                                  │
+│   Category        Product        Order        OrderItem        ShippingAddress   │
+│   (domain)        (domain)       (domain)     (domain)         (value object)    │
+│                                                                                  │
+│   - Business logic methods                                                       │
+│   - Validation rules                                                             │
+│   - No framework dependencies                                                    │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Component Interaction Flow
+### Request Flow Through Layers
 
 ```
-Request → Controller → Service → Repository → Database
-                 ↓         ↓
-              DTO Mapping  Business Logic
-                 ↓         ↓
-Response ← Controller ← Service
+HTTP Request
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Controller (Interface Adapter)                                  │
+│  - Receives HTTP request                                         │
+│  - Maps RequestModel → InputData                                 │
+└─────────────────────────────────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Use Case Interactor                                             │
+│  - Executes business logic                                       │
+│  - Uses Gateways for data access                                 │
+│  - Returns OutputData                                            │
+└─────────────────────────────────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Gateway Implementation (Interface Adapter)                      │
+│  - Implements Gateway interface                                  │
+│  - Uses JPA Repository                                           │
+│  - Maps DataEntity ↔ Domain Entity                               │
+└─────────────────────────────────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  JPA Repository (Framework)                                      │
+│  - Executes database queries                                     │
+│  - Returns JPA Data Entities                                     │
+└─────────────────────────────────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Presenter (Interface Adapter)                                   │
+│  - Maps OutputData → ResponseModel                               │
+│  - Returns HTTP response                                         │
+└─────────────────────────────────────────────────────────────────┘
+     │
+     ▼
+HTTP Response
 ```
 
 ---
@@ -817,83 +926,203 @@ http://localhost:8080/swagger-ui.html
 
 ---
 
-## Project Structure
+## Project Structure (Clean Architecture)
 
 ```
-architecture/
-├── src/
-│   ├── main/
-│   │   ├── java/app/quantun/architecture/
-│   │   │   ├── config/
-│   │   │   │   ├── DataInitializer.java
-│   │   │   │   └── OpenApiConfig.java
-│   │   │   ├── domain/
-│   │   │   │   ├── Category.java
-│   │   │   │   ├── Product.java
-│   │   │   │   ├── CustomerOrder.java
-│   │   │   │   ├── OrderItem.java
-│   │   │   │   └── OrderStatus.java
-│   │   │   ├── dto/
-│   │   │   │   ├── CategoryDTO.java
-│   │   │   │   ├── ProductDTO.java
-│   │   │   │   ├── ProductFilter.java
-│   │   │   │   └── order/
-│   │   │   │       ├── OrderCreateRequest.java
-│   │   │   │       ├── OrderItemRequest.java
-│   │   │   │       ├── OrderItemResponse.java
-│   │   │   │       ├── OrderResponse.java
-│   │   │   │       └── ShippingAddressDTO.java
-│   │   │   ├── exception/
-│   │   │   │   ├── GlobalExceptionHandler.java
-│   │   │   │   ├── NotFoundException.java
-│   │   │   │   ├── BadRequestException.java
-│   │   │   │   └── ConflictException.java
-│   │   │   ├── repository/
-│   │   │   │   ├── CategoryRepository.java
-│   │   │   │   ├── ProductRepository.java
-│   │   │   │   ├── CustomerOrderRepository.java
-│   │   │   │   └── OrderItemRepository.java
-│   │   │   ├── service/
-│   │   │   │   ├── CategoryService.java
-│   │   │   │   ├── ProductService.java
-│   │   │   │   └── OrderService.java
-│   │   │   ├── spec/
-│   │   │   │   └── ProductSpecifications.java
-│   │   │   ├── web/
-│   │   │   │   ├── CategoryController.java
-│   │   │   │   ├── ProductController.java
-│   │   │   │   └── OrderController.java
-│   │   │   └── ArchitectureApplication.java
-│   │   └── resources/
-│   │       └── application.properties
-│   └── test/
-├── docs/
-│   └── Shopping_Cart_API_PRD.md
-├── build.gradle
-├── compose.yaml
-└── README.md
+src/main/java/app/quantun/architecture/
+├── ArchitectureApplication.java
+│
+├── entity/                                   # ENTITIES (innermost)
+│   ├── Category.java                        # Enterprise business rules
+│   ├── Product.java
+│   ├── Order.java
+│   ├── OrderItem.java
+│   ├── OrderStatus.java
+│   └── ShippingAddress.java                 # Value Object
+│
+├── usecase/                                  # USE CASES (Application Business Rules)
+│   ├── category/
+│   │   ├── GetAllCategoriesUseCase.java     # Input port (interface)
+│   │   ├── GetAllCategoriesInteractor.java  # Implementation
+│   │   └── CategoryOutputData.java          # Output DTO
+│   ├── product/
+│   │   ├── SearchProductsUseCase.java
+│   │   ├── SearchProductsInteractor.java
+│   │   ├── ProductSearchInputData.java      # Input DTO
+│   │   └── ProductOutputData.java           # Output DTO
+│   ├── order/
+│   │   ├── CreateOrderUseCase.java
+│   │   ├── CreateOrderInteractor.java
+│   │   ├── CreateOrderInputData.java
+│   │   ├── OrderItemInputData.java
+│   │   └── OrderOutputData.java
+│   └── gateway/                             # Data access interfaces (output boundaries)
+│       ├── CategoryGateway.java
+│       ├── ProductGateway.java
+│       └── OrderGateway.java
+│
+├── interface_adapter/                        # INTERFACE ADAPTERS
+│   ├── controller/                          # Controllers (input adapters)
+│   │   ├── CategoryController.java
+│   │   ├── ProductController.java
+│   │   └── OrderController.java
+│   ├── presenter/                           # Presenters (output adapters)
+│   │   ├── CategoryPresenter.java
+│   │   ├── ProductPresenter.java
+│   │   └── OrderPresenter.java
+│   ├── gateway/                             # Gateway implementations
+│   │   ├── CategoryGatewayImpl.java
+│   │   ├── ProductGatewayImpl.java
+│   │   └── OrderGatewayImpl.java
+│   └── dto/                                 # View Models for HTTP
+│       ├── request/
+│       │   ├── OrderCreateRequestModel.java
+│       │   ├── OrderItemRequestModel.java
+│       │   └── ShippingAddressRequestModel.java
+│       └── response/
+│           ├── CategoryResponseModel.java
+│           ├── ProductResponseModel.java
+│           ├── OrderResponseModel.java
+│           ├── OrderItemResponseModel.java
+│           └── PageResponseModel.java
+│
+├── framework/                                # FRAMEWORKS & DRIVERS (outermost)
+│   ├── config/
+│   │   ├── OpenApiConfig.java
+│   │   ├── BeanConfiguration.java
+│   │   └── DataInitializer.java
+│   ├── persistence/
+│   │   ├── entity/
+│   │   │   ├── CategoryDataEntity.java      # JPA Entity
+│   │   │   ├── ProductDataEntity.java
+│   │   │   ├── OrderDataEntity.java
+│   │   │   └── OrderItemDataEntity.java
+│   │   ├── repository/
+│   │   │   ├── CategoryJpaRepository.java
+│   │   │   ├── ProductJpaRepository.java
+│   │   │   ├── OrderJpaRepository.java
+│   │   │   └── OrderItemJpaRepository.java
+│   │   ├── mapper/
+│   │   │   ├── CategoryDataMapper.java
+│   │   │   ├── ProductDataMapper.java
+│   │   │   └── OrderDataMapper.java
+│   │   └── specification/
+│   │       └── ProductDataSpecifications.java
+│   └── web/
+│       └── exception/
+│           └── GlobalExceptionHandler.java
+│
+└── shared/                                   # Cross-cutting utilities
+    └── exception/
+        ├── EntityNotFoundException.java
+        ├── BusinessRuleException.java
+        └── ValidationException.java
+```
+
+### Test Structure (Mirrors Clean Architecture)
+
+```
+src/test/java/app/quantun/architecture/
+├── entity/                          # Innermost - fastest tests
+│   ├── CategoryTest.java
+│   ├── ProductTest.java
+│   └── OrderTest.java
+├── usecase/                         # Application business rules
+│   ├── category/
+│   │   └── GetAllCategoriesInteractorTest.java
+│   ├── product/
+│   │   └── SearchProductsInteractorTest.java
+│   └── order/
+│       └── CreateOrderInteractorTest.java
+├── interface_adapter/               # Interface adapters
+│   ├── controller/
+│   │   ├── CategoryControllerTest.java
+│   │   ├── ProductControllerTest.java
+│   │   └── OrderControllerTest.java
+│   └── gateway/
+│       ├── CategoryGatewayImplTest.java
+│       ├── ProductGatewayImplTest.java
+│       └── OrderGatewayImplTest.java
+├── framework/                       # Outermost - infrastructure tests
+│   └── persistence/
+│       └── mapper/
+│           ├── ProductDataMapperTest.java
+│           └── OrderDataMapperTest.java
+├── integration/                     # Full stack tests
+│   ├── CreateOrderFullStackTest.java
+│   └── ProductSearchFullStackTest.java
+└── architecture/                    # Architecture compliance tests
+    └── CleanArchitectureTest.java
+```
+
+---
+
+## Testing Strategy
+
+Clean Architecture provides exceptional testability because of its strict separation of concerns and dependency rules.
+
+### Test Layers
+
+| Layer | Test Type | Speed | Dependencies |
+|-------|-----------|-------|--------------|
+| **Entities** | Unit Tests | Fastest | None (pure Java) |
+| **Use Cases** | Unit Tests | Fast | Mocked Gateways |
+| **Interface Adapters** | Integration Tests | Medium | Spring Context |
+| **Frameworks** | Integration Tests | Slow | Database, External Services |
+
+### Architecture Tests with ArchUnit
+
+```java
+@Test
+void entitiesShouldNotDependOnUseCases() {
+    ArchRule rule = noClasses()
+        .that().resideInAPackage("..entity..")
+        .should().dependOnClassesThat()
+        .resideInAPackage("..usecase..");
+    
+    rule.check(classes);
+}
+
+@Test
+void useCasesShouldNotDependOnFrameworks() {
+    ArchRule rule = noClasses()
+        .that().resideInAPackage("..usecase..")
+        .should().dependOnClassesThat()
+        .resideInAnyPackage("..framework..", "org.springframework..");
+    
+    rule.check(classes);
+}
 ```
 
 ---
 
 ## Development Notes
 
-### Best Practices Implemented
+### Clean Architecture Best Practices
 
-1. **Clean Architecture** - Clear separation of concerns across layers
-2. **SOLID Principles** - Single responsibility, dependency injection
-3. **DRY Principle** - Specification pattern eliminates query duplication
-4. **Immutable DTOs** - Using Java records for thread-safe data transfer
-5. **Validation** - Jakarta Validation annotations at DTO level
-6. **Exception Handling** - Centralized, consistent error responses
-7. **Transaction Management** - Proper `@Transactional` boundaries
-8. **API Documentation** - Comprehensive OpenAPI annotations
+1. **Dependency Rule** - Dependencies only point inward toward higher-level policies
+2. **Entities Are NOT JPA Entities** - Separate domain entities from persistence entities
+3. **Use Cases Return Output Data** - Not domain entities directly
+4. **Controllers Use Presenters** - For transforming output data to response models
+5. **Gateways Are Interfaces** - Defined in use case layer, implemented in interface adapter layer
+6. **Interactors Have No Annotations** - Pure Java classes, no Spring annotations
+7. **BeanConfiguration Wires Use Cases** - Manual bean creation in config class
+8. **Preserve Validation** - In request DTOs (framework level) and entities (domain level)
+9. **Transaction Boundaries** - On interactor methods, using @Transactional
+10. **MapStruct for Mapping** - Type-safe transformations between layers
+
+### SOLID Principles Applied
+
+- **Single Responsibility** - Each class has one reason to change
+- **Open/Closed** - Open for extension, closed for modification
+- **Liskov Substitution** - Interfaces define contracts
+- **Interface Segregation** - Small, focused interfaces (Use Cases, Gateways)
+- **Dependency Inversion** - High-level modules don't depend on low-level modules
 
 ### Future Enhancements
 
 - Add authentication/authorization (Spring Security + JWT)
 - Implement caching (Redis)
-- Add comprehensive unit and integration tests
 - Implement optimistic locking with `@Version`
 - Add event-driven architecture (Spring Events/Kafka)
 - Implement database migrations (Flyway/Liquibase)
@@ -917,4 +1146,4 @@ Apache 2.0
 
 ---
 
-**Last Updated:** 2025-11-24
+**Last Updated:** 2025-11-30

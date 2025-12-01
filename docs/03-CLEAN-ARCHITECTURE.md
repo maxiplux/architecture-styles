@@ -2,9 +2,13 @@
 
 ## Overview
 
-Clean Architecture was introduced by Robert C. Martin (Uncle Bob) and emphasizes the **dependency rule**: source code dependencies must point inward, toward higher-level policies. The inner circles contain enterprise business rules and application business rules, while outer circles contain mechanisms and frameworks.
+Clean Architecture was introduced by Robert C. Martin (Uncle Bob) and emphasizes the **dependency rule**: source code
+dependencies must point inward, toward higher-level policies. The inner circles contain enterprise business rules and
+application business rules, while outer circles contain mechanisms and frameworks.
 
-The key insight is that frameworks, databases, and delivery mechanisms are **details** that should be kept at arm's length from the core business logic. This allows the business rules to be tested and evolved independently of external concerns.
+The key insight is that frameworks, databases, and delivery mechanisms are **details** that should be kept at arm's
+length from the core business logic. This allows the business rules to be tested and evolved independently of external
+concerns.
 
 ---
 
@@ -86,56 +90,60 @@ src/main/java/app/quantun/architecture/
 │       ├── ProductGateway.java
 │       └── OrderGateway.java
 │
-├── interface_adapter/                        # INTERFACE ADAPTERS
-│   ├── controller/                          # Controllers (input adapters)
-│   │   ├── CategoryController.java
-│   │   ├── ProductController.java
-│   │   └── OrderController.java
-│   ├── presenter/                           # Presenters (output adapters)
-│   │   ├── CategoryPresenter.java
-│   │   ├── ProductPresenter.java
-│   │   └── OrderPresenter.java
+├── presentation/                             # UI/API LAYER (Interface Adapters - Input)
+│   ├── rest/                                # REST API adapters
+│   │   ├── controller/
+│   │   │   ├── CategoryController.java
+│   │   │   ├── ProductController.java
+│   │   │   └── OrderController.java
+│   │   ├── dto/                             # View Models for HTTP
+│   │   │   ├── request/
+│   │   │   │   ├── OrderCreateRequest.java
+│   │   │   │   ├── OrderItemRequest.java
+│   │   │   │   └── ShippingAddressRequest.java
+│   │   │   └── response/
+│   │   │       ├── CategoryResponse.java
+│   │   │       ├── ProductResponse.java
+│   │   │       ├── OrderResponse.java
+│   │   │       ├── OrderItemResponse.java
+│   │   │       └── PageResponse.java
+│   │   ├── mapper/                          # REST DTO mappers
+│   │   │   ├── CategoryRestMapper.java
+│   │   │   ├── ProductRestMapper.java
+│   │   │   └── OrderRestMapper.java
+│   │   └── exception/
+│   │       └── GlobalExceptionHandler.java
+│   └── presenter/                           # Presenters (output adapters)
+│       ├── CategoryPresenter.java
+│       ├── ProductPresenter.java
+│       └── OrderPresenter.java
+│
+├── persistence/                              # DATA LAYER (Interface Adapters - Output)
+│   ├── entity/                              # JPA Entities
+│   │   ├── CategoryJpaEntity.java
+│   │   ├── ProductJpaEntity.java
+│   │   ├── OrderJpaEntity.java
+│   │   └── OrderItemJpaEntity.java
+│   ├── repository/                          # Spring Data repositories
+│   │   ├── CategoryJpaRepository.java
+│   │   ├── ProductJpaRepository.java
+│   │   ├── OrderJpaRepository.java
+│   │   └── OrderItemJpaRepository.java
 │   ├── gateway/                             # Gateway implementations
 │   │   ├── CategoryGatewayImpl.java
 │   │   ├── ProductGatewayImpl.java
 │   │   └── OrderGatewayImpl.java
-│   └── dto/                                 # View Models for HTTP
-│       ├── request/
-│       │   ├── OrderCreateRequestModel.java
-│       │   ├── OrderItemRequestModel.java
-│       │   └── ShippingAddressRequestModel.java
-│       └── response/
-│           ├── CategoryResponseModel.java
-│           ├── ProductResponseModel.java
-│           ├── OrderResponseModel.java
-│           ├── OrderItemResponseModel.java
-│           └── PageResponseModel.java
+│   ├── mapper/                              # JPA Entity mappers
+│   │   ├── CategoryPersistenceMapper.java
+│   │   ├── ProductPersistenceMapper.java
+│   │   └── OrderPersistenceMapper.java
+│   └── specification/
+│       └── ProductSpecifications.java
 │
-├── framework/                                # FRAMEWORKS & DRIVERS (outermost)
-│   ├── config/
-│   │   ├── OpenApiConfig.java
-│   │   ├── BeanConfiguration.java
-│   │   └── DataInitializer.java
-│   ├── persistence/
-│   │   ├── entity/
-│   │   │   ├── CategoryDataEntity.java      # JPA Entity
-│   │   │   ├── ProductDataEntity.java
-│   │   │   ├── OrderDataEntity.java
-│   │   │   └── OrderItemDataEntity.java
-│   │   ├── repository/
-│   │   │   ├── CategoryJpaRepository.java
-│   │   │   ├── ProductJpaRepository.java
-│   │   │   ├── OrderJpaRepository.java
-│   │   │   └── OrderItemJpaRepository.java
-│   │   ├── mapper/
-│   │   │   ├── CategoryDataMapper.java
-│   │   │   ├── ProductDataMapper.java
-│   │   │   └── OrderDataMapper.java
-│   │   └── specification/
-│   │       └── ProductDataSpecifications.java
-│   └── web/
-│       └── exception/
-│           └── GlobalExceptionHandler.java
+├── config/                                   # CONFIGURATION (Frameworks & Drivers)
+│   ├── OpenApiConfig.java
+│   ├── BeanConfiguration.java
+│   └── DataInitializer.java
 │
 └── shared/                                   # Cross-cutting utilities
     └── exception/
@@ -150,7 +158,8 @@ src/main/java/app/quantun/architecture/
 
 ### Entities Layer (`entity/`)
 
-The innermost layer containing enterprise-wide business rules. These are the most stable and least likely to change. Entities encapsulate the most general and high-level rules.
+The innermost layer containing enterprise-wide business rules. These are the most stable and least likely to change.
+Entities encapsulate the most general and high-level rules.
 
 ```java
 // entity/Product.java
@@ -166,7 +175,7 @@ public class Product {
     private final Category category;
 
     // Private constructor - use factory methods
-    private Product(Long id, String name, String description, BigDecimal price, 
+    private Product(Long id, String name, String description, BigDecimal price,
                     Integer stock, String imageUrl, boolean active, Category category) {
         this.id = id;
         this.name = name;
@@ -179,8 +188,8 @@ public class Product {
     }
 
     // Factory method with validation
-    public static Product create(Long id, String name, String description, BigDecimal price, 
-                                  Integer stock, String imageUrl, boolean active, Category category) {
+    public static Product create(Long id, String name, String description, BigDecimal price,
+                                 Integer stock, String imageUrl, boolean active, Category category) {
         // Enforce business rules
         if (name == null || name.trim().isEmpty()) {
             throw new IllegalArgumentException("Product name is required");
@@ -206,22 +215,45 @@ public class Product {
     public void reduceStock(int quantity) {
         if (!canFulfillQuantity(quantity)) {
             throw new IllegalStateException(
-                String.format("Cannot reduce stock by %d. Current stock: %d, Active: %s", 
-                              quantity, stock, active)
+                    String.format("Cannot reduce stock by %d. Current stock: %d, Active: %s",
+                            quantity, stock, active)
             );
         }
         this.stock -= quantity;
     }
 
     // Immutable getters
-    public Long getId() { return id; }
-    public String getName() { return name; }
-    public String getDescription() { return description; }
-    public BigDecimal getPrice() { return price; }
-    public Integer getStock() { return stock; }
-    public String getImageUrl() { return imageUrl; }
-    public boolean isActive() { return active; }
-    public Category getCategory() { return category; }
+    public Long getId() {
+        return id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public BigDecimal getPrice() {
+        return price;
+    }
+
+    public Integer getStock() {
+        return stock;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public Category getCategory() {
+        return category;
+    }
 }
 ```
 
@@ -268,31 +300,31 @@ public class Order {
         BigDecimal total = subtotal.add(tax);
 
         return new Order(
-            null, // ID assigned after persistence
-            customerId,
-            OrderStatus.PENDING,
-            new ArrayList<>(items),
-            subtotal,
-            tax,
-            total,
-            OffsetDateTime.now(),
-            shippingAddress
+                null, // ID assigned after persistence
+                customerId,
+                OrderStatus.PENDING,
+                new ArrayList<>(items),
+                subtotal,
+                tax,
+                total,
+                OffsetDateTime.now(),
+                shippingAddress
         );
     }
 
     // Factory method for reconstituting from persistence
-    public static Order reconstitute(Long id, Long customerId, OrderStatus status, 
-                                      List<OrderItem> items, BigDecimal subtotal, 
-                                      BigDecimal tax, BigDecimal total,
-                                      OffsetDateTime createdAt, ShippingAddress shippingAddress) {
+    public static Order reconstitute(Long id, Long customerId, OrderStatus status,
+                                     List<OrderItem> items, BigDecimal subtotal,
+                                     BigDecimal tax, BigDecimal total,
+                                     OffsetDateTime createdAt, ShippingAddress shippingAddress) {
         return new Order(id, customerId, status, items, subtotal, tax, total, createdAt, shippingAddress);
     }
 
     private static BigDecimal calculateSubtotal(List<OrderItem> items) {
         return items.stream()
-            .map(OrderItem::getSubtotal)
-            .reduce(BigDecimal.ZERO, BigDecimal::add)
-            .setScale(2, RoundingMode.HALF_UP);
+                .map(OrderItem::getSubtotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
     }
 
     private static BigDecimal calculateTax(BigDecimal subtotal) {
@@ -323,27 +355,53 @@ public class Order {
     }
 
     // Getters
-    public Long getId() { return id; }
-    public Long getCustomerId() { return customerId; }
-    public OrderStatus getStatus() { return status; }
-    public List<OrderItem> getItems() { return Collections.unmodifiableList(items); }
-    public BigDecimal getSubtotal() { return subtotal; }
-    public BigDecimal getTax() { return tax; }
-    public BigDecimal getTotal() { return total; }
-    public OffsetDateTime getCreatedAt() { return createdAt; }
-    public ShippingAddress getShippingAddress() { return shippingAddress; }
+    public Long getId() {
+        return id;
+    }
+
+    public Long getCustomerId() {
+        return customerId;
+    }
+
+    public OrderStatus getStatus() {
+        return status;
+    }
+
+    public List<OrderItem> getItems() {
+        return Collections.unmodifiableList(items);
+    }
+
+    public BigDecimal getSubtotal() {
+        return subtotal;
+    }
+
+    public BigDecimal getTax() {
+        return tax;
+    }
+
+    public BigDecimal getTotal() {
+        return total;
+    }
+
+    public OffsetDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public ShippingAddress getShippingAddress() {
+        return shippingAddress;
+    }
 }
 ```
 
 ```java
 // entity/ShippingAddress.java (Value Object)
 public record ShippingAddress(
-    String street,
-    String city,
-    String state,
-    String zipCode,
-    String country
-) {
+                String street,
+                String city,
+                String state,
+                String zipCode,
+                String country
+        ) {
     public ShippingAddress {
         if (street == null || street.isBlank()) {
             throw new IllegalArgumentException("Street is required");
@@ -363,7 +421,8 @@ public record ShippingAddress(
 
 ### Use Cases Layer (`usecase/`)
 
-Application-specific business rules. Use cases orchestrate the flow of data to and from entities and direct those entities to use their enterprise-wide business rules.
+Application-specific business rules. Use cases orchestrate the flow of data to and from entities and direct those
+entities to use their enterprise-wide business rules.
 
 #### Input/Output Boundaries
 
@@ -377,12 +436,13 @@ public interface GetAllCategoriesUseCase {
 ```java
 // usecase/category/CategoryOutputData.java (Output Data)
 public record CategoryOutputData(
-    Long id,
-    String name,
-    String description,
-    boolean active,
-    OffsetDateTime createdAt
-) {}
+                Long id,
+                String name,
+                String description,
+                boolean active,
+                OffsetDateTime createdAt
+        ) {
+}
 ```
 
 ```java
@@ -395,17 +455,17 @@ public interface SearchProductsUseCase {
 ```java
 // usecase/product/ProductSearchInputData.java (Input Data)
 public record ProductSearchInputData(
-    Long categoryId,
-    String name,
-    BigDecimal minPrice,
-    BigDecimal maxPrice,
-    Boolean inStock,
-    Boolean active,
-    int page,
-    int size,
-    String sortBy,
-    String sortDirection
-) {
+                Long categoryId,
+                String name,
+                BigDecimal minPrice,
+                BigDecimal maxPrice,
+                Boolean inStock,
+                Boolean active,
+                int page,
+                int size,
+                String sortBy,
+                String sortDirection
+        ) {
     public ProductSearchInputData {
         if (active == null) active = true;
         if (page < 0) page = 0;
@@ -419,29 +479,31 @@ public record ProductSearchInputData(
 ```java
 // usecase/product/ProductOutputData.java
 public record ProductOutputData(
-    Long id,
-    String name,
-    String description,
-    BigDecimal price,
-    Long categoryId,
-    String categoryName,
-    Integer stock,
-    String imageUrl,
-    boolean active
-) {}
+                Long id,
+                String name,
+                String description,
+                BigDecimal price,
+                Long categoryId,
+                String categoryName,
+                Integer stock,
+                String imageUrl,
+                boolean active
+        ) {
+}
 ```
 
 ```java
 // usecase/product/PagedProductOutputData.java
 public record PagedProductOutputData(
-    List<ProductOutputData> content,
-    long totalElements,
-    int totalPages,
-    int number,
-    int size,
-    boolean first,
-    boolean last
-) {}
+                List<ProductOutputData> content,
+                long totalElements,
+                int totalPages,
+                int number,
+                int size,
+                boolean first,
+                boolean last
+        ) {
+}
 ```
 
 ```java
@@ -454,39 +516,43 @@ public interface CreateOrderUseCase {
 ```java
 // usecase/order/CreateOrderInputData.java
 public record CreateOrderInputData(
-    Long customerId,
-    List<OrderItemInputData> items,
-    String shippingStreet,
-    String shippingCity,
-    String shippingState,
-    String shippingZipCode,
-    String shippingCountry
-) {}
+                Long customerId,
+                List<OrderItemInputData> items,
+                String shippingStreet,
+                String shippingCity,
+                String shippingState,
+                String shippingZipCode,
+                String shippingCountry
+        ) {
+}
 
 // usecase/order/OrderItemInputData.java
-public record OrderItemInputData(Long productId, Integer quantity) {}
+public record OrderItemInputData(Long productId, Integer quantity) {
+}
 ```
 
 ```java
 // usecase/order/OrderOutputData.java
 public record OrderOutputData(
-    Long orderId,
-    String status,
-    List<OrderItemOutputData> items,
-    BigDecimal subtotal,
-    BigDecimal tax,
-    BigDecimal total,
-    OffsetDateTime createdAt
-) {}
+                Long orderId,
+                String status,
+                List<OrderItemOutputData> items,
+                BigDecimal subtotal,
+                BigDecimal tax,
+                BigDecimal total,
+                OffsetDateTime createdAt
+        ) {
+}
 
 // usecase/order/OrderItemOutputData.java
 public record OrderItemOutputData(
-    Long productId,
-    String productName,
-    Integer quantity,
-    BigDecimal unitPrice,
-    BigDecimal subtotal
-) {}
+        Long productId,
+        String productName,
+        Integer quantity,
+        BigDecimal unitPrice,
+        BigDecimal subtotal
+) {
+}
 ```
 
 #### Gateways (Output Boundaries)
@@ -495,7 +561,9 @@ public record OrderItemOutputData(
 // usecase/gateway/CategoryGateway.java
 public interface CategoryGateway {
     List<Category> findAllActive();
+
     Optional<Category> findById(Long id);
+
     boolean existsById(Long id);
 }
 ```
@@ -504,21 +572,29 @@ public interface CategoryGateway {
 // usecase/gateway/ProductGateway.java
 public interface ProductGateway {
     PagedResult<Product> findAll(ProductSearchInputData criteria);
+
     Optional<Product> findById(Long id);
+
     List<Product> findAllByIds(List<Long> ids);
+
     Product save(Product product);
 }
 
 // usecase/gateway/PagedResult.java
 public record PagedResult<T>(
-    List<T> content,
-    long totalElements,
-    int totalPages,
-    int number,
-    int size
+        List<T> content,
+        long totalElements,
+        int totalPages,
+        int number,
+        int size
 ) {
-    public boolean isFirst() { return number == 0; }
-    public boolean isLast() { return number >= totalPages - 1; }
+    public boolean isFirst() {
+        return number == 0;
+    }
+
+    public boolean isLast() {
+        return number >= totalPages - 1;
+    }
 }
 ```
 
@@ -526,6 +602,7 @@ public record PagedResult<T>(
 // usecase/gateway/OrderGateway.java
 public interface OrderGateway {
     Order save(Order order);
+
     Optional<Order> findById(Long id);
 }
 ```
@@ -535,7 +612,7 @@ public interface OrderGateway {
 ```java
 // usecase/category/GetAllCategoriesInteractor.java
 public class GetAllCategoriesInteractor implements GetAllCategoriesUseCase {
-    
+
     private final CategoryGateway categoryGateway;
 
     public GetAllCategoriesInteractor(CategoryGateway categoryGateway) {
@@ -545,17 +622,17 @@ public class GetAllCategoriesInteractor implements GetAllCategoriesUseCase {
     @Override
     public List<CategoryOutputData> execute() {
         return categoryGateway.findAllActive().stream()
-            .map(this::toOutputData)
-            .toList();
+                .map(this::toOutputData)
+                .toList();
     }
 
     private CategoryOutputData toOutputData(Category category) {
         return new CategoryOutputData(
-            category.getId(),
-            category.getName(),
-            category.getDescription(),
-            category.isActive(),
-            category.getCreatedAt()
+                category.getId(),
+                category.getName(),
+                category.getDescription(),
+                category.isActive(),
+                category.getCreatedAt()
         );
     }
 }
@@ -564,7 +641,7 @@ public class GetAllCategoriesInteractor implements GetAllCategoriesUseCase {
 ```java
 // usecase/product/SearchProductsInteractor.java
 public class SearchProductsInteractor implements SearchProductsUseCase {
-    
+
     private final ProductGateway productGateway;
     private final CategoryGateway categoryGateway;
 
@@ -583,31 +660,31 @@ public class SearchProductsInteractor implements SearchProductsUseCase {
         PagedResult<Product> result = productGateway.findAll(input);
 
         List<ProductOutputData> content = result.content().stream()
-            .map(this::toOutputData)
-            .toList();
+                .map(this::toOutputData)
+                .toList();
 
         return new PagedProductOutputData(
-            content,
-            result.totalElements(),
-            result.totalPages(),
-            result.number(),
-            result.size(),
-            result.isFirst(),
-            result.isLast()
+                content,
+                result.totalElements(),
+                result.totalPages(),
+                result.number(),
+                result.size(),
+                result.isFirst(),
+                result.isLast()
         );
     }
 
     private ProductOutputData toOutputData(Product product) {
         return new ProductOutputData(
-            product.getId(),
-            product.getName(),
-            product.getDescription(),
-            product.getPrice(),
-            product.getCategory() != null ? product.getCategory().getId() : null,
-            product.getCategory() != null ? product.getCategory().getName() : null,
-            product.getStock(),
-            product.getImageUrl(),
-            product.isActive()
+                product.getId(),
+                product.getName(),
+                product.getDescription(),
+                product.getPrice(),
+                product.getCategory() != null ? product.getCategory().getId() : null,
+                product.getCategory() != null ? product.getCategory().getName() : null,
+                product.getStock(),
+                product.getImageUrl(),
+                product.isActive()
         );
     }
 }
@@ -616,7 +693,7 @@ public class SearchProductsInteractor implements SearchProductsUseCase {
 ```java
 // usecase/order/CreateOrderInteractor.java
 public class CreateOrderInteractor implements CreateOrderUseCase {
-    
+
     private final ProductGateway productGateway;
     private final OrderGateway orderGateway;
 
@@ -635,11 +712,11 @@ public class CreateOrderInteractor implements CreateOrderUseCase {
 
         // Load products
         List<Long> productIds = input.items().stream()
-            .map(OrderItemInputData::productId)
-            .toList();
-        
+                .map(OrderItemInputData::productId)
+                .toList();
+
         List<Product> products = productGateway.findAllByIds(productIds);
-        
+
         if (products.size() != productIds.size()) {
             throw new EntityNotFoundException("One or more products not found");
         }
@@ -648,33 +725,33 @@ public class CreateOrderInteractor implements CreateOrderUseCase {
         List<OrderItem> orderItems = new ArrayList<>();
         for (OrderItemInputData itemInput : input.items()) {
             Product product = products.stream()
-                .filter(p -> p.getId().equals(itemInput.productId()))
-                .findFirst()
-                .orElseThrow();
+                    .filter(p -> p.getId().equals(itemInput.productId()))
+                    .findFirst()
+                    .orElseThrow();
 
             // Entity validates its own rules
             if (!product.canFulfillQuantity(itemInput.quantity())) {
                 throw new BusinessRuleException(
-                    "Insufficient stock for product: " + product.getId()
+                        "Insufficient stock for product: " + product.getId()
                 );
             }
 
             OrderItem orderItem = OrderItem.create(
-                product.getId(),
-                product.getName(),
-                product.getPrice(),
-                itemInput.quantity()
+                    product.getId(),
+                    product.getName(),
+                    product.getPrice(),
+                    itemInput.quantity()
             );
             orderItems.add(orderItem);
         }
 
         // Create shipping address (value object validates itself)
         ShippingAddress shippingAddress = new ShippingAddress(
-            input.shippingStreet(),
-            input.shippingCity(),
-            input.shippingState(),
-            input.shippingZipCode(),
-            input.shippingCountry()
+                input.shippingStreet(),
+                input.shippingCity(),
+                input.shippingState(),
+                input.shippingZipCode(),
+                input.shippingCountry()
         );
 
         // Create order (entity validates and calculates totals)
@@ -686,10 +763,10 @@ public class CreateOrderInteractor implements CreateOrderUseCase {
         // Update product stock (entity business logic)
         for (OrderItem item : savedOrder.getItems()) {
             Product product = products.stream()
-                .filter(p -> p.getId().equals(item.getProductId()))
-                .findFirst()
-                .orElseThrow();
-            
+                    .filter(p -> p.getId().equals(item.getProductId()))
+                    .findFirst()
+                    .orElseThrow();
+
             product.reduceStock(item.getQuantity());
             productGateway.save(product);
         }
@@ -699,67 +776,68 @@ public class CreateOrderInteractor implements CreateOrderUseCase {
 
     private OrderOutputData toOutputData(Order order) {
         List<OrderItemOutputData> items = order.getItems().stream()
-            .map(item -> new OrderItemOutputData(
-                item.getProductId(),
-                item.getProductName(),
-                item.getQuantity(),
-                item.getUnitPrice(),
-                item.getSubtotal()
-            ))
-            .toList();
+                .map(item -> new OrderItemOutputData(
+                        item.getProductId(),
+                        item.getProductName(),
+                        item.getQuantity(),
+                        item.getUnitPrice(),
+                        item.getSubtotal()
+                ))
+                .toList();
 
         return new OrderOutputData(
-            order.getId(),
-            order.getStatus().name(),
-            items,
-            order.getSubtotal(),
-            order.getTax(),
-            order.getTotal(),
-            order.getCreatedAt()
+                order.getId(),
+                order.getStatus().name(),
+                items,
+                order.getSubtotal(),
+                order.getTax(),
+                order.getTotal(),
+                order.getCreatedAt()
         );
     }
 }
 ```
 
-### Interface Adapters Layer (`interface_adapter/`)
+### Presentation Layer (`presentation/`)
 
-This layer converts data from the format most convenient for use cases and entities to the format most convenient for external agencies.
+This layer handles all UI/API concerns: receiving input from users and presenting output. It converts data from the
+format most convenient for use cases and entities to the format most convenient for external clients.
 
 #### Controllers
 
 ```java
-// interface_adapter/controller/CategoryController.java
+// presentation/rest/controller/CategoryController.java
 @Tag(name = "Categories", description = "Product category management endpoints")
 @RestController
 @RequestMapping("/api/v1/categories")
 public class CategoryController {
-    
+
     private final GetAllCategoriesUseCase getAllCategoriesUseCase;
     private final CategoryPresenter presenter;
 
-    public CategoryController(GetAllCategoriesUseCase getAllCategoriesUseCase, 
-                               CategoryPresenter presenter) {
+    public CategoryController(GetAllCategoriesUseCase getAllCategoriesUseCase,
+                              CategoryPresenter presenter) {
         this.getAllCategoriesUseCase = getAllCategoriesUseCase;
         this.presenter = presenter;
     }
 
     @Operation(summary = "Get all product categories")
     @GetMapping
-    public ResponseEntity<List<CategoryResponseModel>> getAll() {
+    public ResponseEntity<List<CategoryResponse>> getAll() {
         List<CategoryOutputData> categories = getAllCategoriesUseCase.execute();
-        List<CategoryResponseModel> response = presenter.present(categories);
+        List<CategoryResponse> response = presenter.present(categories);
         return ResponseEntity.ok(response);
     }
 }
 ```
 
 ```java
-// interface_adapter/controller/OrderController.java
+// presentation/rest/controller/OrderController.java
 @Tag(name = "Orders", description = "Order management endpoints")
 @RestController
 @RequestMapping("/api/v1/orders")
 public class OrderController {
-    
+
     private final CreateOrderUseCase createOrderUseCase;
     private final OrderPresenter presenter;
 
@@ -770,28 +848,28 @@ public class OrderController {
 
     @Operation(summary = "Create a new order")
     @PostMapping
-    public ResponseEntity<OrderResponseModel> create(
-            @Valid @RequestBody OrderCreateRequestModel request) {
-        
+    public ResponseEntity<OrderResponse> create(
+            @Valid @RequestBody OrderCreateRequest request) {
+
         // Convert request to use case input
         CreateOrderInputData input = new CreateOrderInputData(
-            request.customerId(),
-            request.items().stream()
-                .map(item -> new OrderItemInputData(item.productId(), item.quantity()))
-                .toList(),
-            request.shippingAddress().street(),
-            request.shippingAddress().city(),
-            request.shippingAddress().state(),
-            request.shippingAddress().zipCode(),
-            request.shippingAddress().country()
+                request.customerId(),
+                request.items().stream()
+                        .map(item -> new OrderItemInputData(item.productId(), item.quantity()))
+                        .toList(),
+                request.shippingAddress().street(),
+                request.shippingAddress().city(),
+                request.shippingAddress().state(),
+                request.shippingAddress().zipCode(),
+                request.shippingAddress().country()
         );
-        
+
         // Execute use case
         OrderOutputData output = createOrderUseCase.execute(input);
-        
+
         // Present result
-        OrderResponseModel response = presenter.present(output);
-        
+        OrderResponse response = presenter.present(output);
+
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }
@@ -800,141 +878,114 @@ public class OrderController {
 #### Presenters
 
 ```java
-// interface_adapter/presenter/CategoryPresenter.java
+// presentation/presenter/CategoryPresenter.java
 @Component
 public class CategoryPresenter {
-    
-    public List<CategoryResponseModel> present(List<CategoryOutputData> categories) {
+
+    public List<CategoryResponse> present(List<CategoryOutputData> categories) {
         return categories.stream()
-            .map(this::toResponseModel)
-            .toList();
+                .map(this::toResponse)
+                .toList();
     }
 
-    private CategoryResponseModel toResponseModel(CategoryOutputData data) {
-        return new CategoryResponseModel(
-            data.id(),
-            data.name(),
-            data.description(),
-            data.active(),
-            data.createdAt()
+    private CategoryResponse toResponse(CategoryOutputData data) {
+        return new CategoryResponse(
+                data.id(),
+                data.name(),
+                data.description(),
+                data.active(),
+                data.createdAt()
         );
     }
 }
 ```
 
 ```java
-// interface_adapter/presenter/OrderPresenter.java
+// presentation/presenter/OrderPresenter.java
 @Component
 public class OrderPresenter {
-    
-    public OrderResponseModel present(OrderOutputData output) {
-        List<OrderItemResponseModel> items = output.items().stream()
-            .map(item -> new OrderItemResponseModel(
-                item.productId(),
-                item.productName(),
-                item.quantity(),
-                item.unitPrice(),
-                item.subtotal()
-            ))
-            .toList();
 
-        return new OrderResponseModel(
-            output.orderId(),
-            output.status(),
-            items,
-            output.subtotal(),
-            output.tax(),
-            output.total(),
-            output.createdAt()
+    public OrderResponse present(OrderOutputData output) {
+        List<OrderItemResponse> items = output.items().stream()
+                .map(item -> new OrderItemResponse(
+                        item.productId(),
+                        item.productName(),
+                        item.quantity(),
+                        item.unitPrice(),
+                        item.subtotal()
+                ))
+                .toList();
+
+        return new OrderResponse(
+                output.orderId(),
+                output.status(),
+                items,
+                output.subtotal(),
+                output.tax(),
+                output.total(),
+                output.createdAt()
         );
     }
 }
 ```
 
-#### DTOs (View Models)
+#### DTOs (Request/Response Models)
 
 ```java
-// interface_adapter/dto/response/CategoryResponseModel.java
-public record CategoryResponseModel(
-    Long id,
-    String name,
-    String description,
-    boolean active,
-    OffsetDateTime createdAt
-) {}
-```
-
-```java
-// interface_adapter/dto/request/OrderCreateRequestModel.java
-public record OrderCreateRequestModel(
-    @NotNull Long customerId,
-    @NotEmpty @Valid List<OrderItemRequestModel> items,
-    @NotNull @Valid ShippingAddressRequestModel shippingAddress
-) {}
-
-// interface_adapter/dto/request/OrderItemRequestModel.java
-public record OrderItemRequestModel(
-    @NotNull Long productId,
-    @NotNull @Min(1) @Max(99) Integer quantity
-) {}
-
-// interface_adapter/dto/request/ShippingAddressRequestModel.java
-public record ShippingAddressRequestModel(
-    @NotBlank @Size(max = 200) String street,
-    @NotBlank @Size(max = 100) String city,
-    @Size(max = 100) String state,
-    @NotBlank @Size(max = 20) String zipCode,
-    @NotBlank @Size(max = 100) String country
-) {}
-```
-
-#### Gateway Implementations
-
-```java
-// interface_adapter/gateway/CategoryGatewayImpl.java
-@Component
-public class CategoryGatewayImpl implements CategoryGateway {
-    
-    private final CategoryJpaRepository repository;
-    private final CategoryDataMapper mapper;
-
-    public CategoryGatewayImpl(CategoryJpaRepository repository, CategoryDataMapper mapper) {
-        this.repository = repository;
-        this.mapper = mapper;
-    }
-
-    @Override
-    public List<Category> findAllActive() {
-        return repository.findByActiveTrue().stream()
-            .map(mapper::toDomain)
-            .toList();
-    }
-
-    @Override
-    public Optional<Category> findById(Long id) {
-        return repository.findById(id).map(mapper::toDomain);
-    }
-
-    @Override
-    public boolean existsById(Long id) {
-        return repository.existsById(id);
-    }
+// presentation/rest/dto/response/CategoryResponse.java
+public record CategoryResponse(
+                Long id,
+                String name,
+                String description,
+                boolean active,
+                OffsetDateTime createdAt
+        ) {
 }
 ```
 
-### Frameworks & Drivers Layer (`framework/`)
+```java
+// presentation/rest/dto/request/OrderCreateRequest.java
+public record OrderCreateRequest(
+                @NotNull Long customerId,
+                @NotEmpty @Valid List<OrderItemRequest> items,
+                @NotNull @Valid ShippingAddressRequest shippingAddress
+        ) {
+}
 
-The outermost layer containing all framework-specific code.
+// presentation/rest/dto/request/OrderItemRequest.java
+public record OrderItemRequest(
+        @NotNull Long productId,
+        @NotNull @Min(1) @Max(99) Integer quantity
+) {
+}
+
+// presentation/rest/dto/request/ShippingAddressRequest.java
+public record ShippingAddressRequest(
+        @NotBlank @Size(max = 200) String street,
+        @NotBlank @Size(max = 100) String city,
+        @Size(max = 100) String state,
+        @NotBlank @Size(max = 20) String zipCode,
+        @NotBlank @Size(max = 100) String country
+) {
+}
+```
+
+### Persistence Layer (`persistence/`)
+
+This layer handles all data persistence concerns: storing and retrieving data from databases. It implements the gateway
+interfaces defined in the use case layer.
+
+#### JPA Entities
 
 ```java
-// framework/persistence/entity/ProductDataEntity.java
+// persistence/entity/ProductJpaEntity.java
 @Entity
 @Table(name = "products")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ProductDataEntity {
+public class ProductJpaEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -959,53 +1010,93 @@ public class ProductDataEntity {
 
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
-    private CategoryDataEntity category;
+    private CategoryJpaEntity category;
 }
 ```
 
-```java
-// framework/persistence/mapper/ProductDataMapper.java
-@Component
-public class ProductDataMapper {
-    
-    private final CategoryDataMapper categoryMapper;
+#### Gateway Implementations
 
-    public ProductDataMapper(CategoryDataMapper categoryMapper) {
+```java
+// persistence/gateway/CategoryGatewayImpl.java
+@Component
+public class CategoryGatewayImpl implements CategoryGateway {
+
+    private final CategoryJpaRepository repository;
+    private final CategoryPersistenceMapper mapper;
+
+    public CategoryGatewayImpl(CategoryJpaRepository repository, CategoryPersistenceMapper mapper) {
+        this.repository = repository;
+        this.mapper = mapper;
+    }
+
+    @Override
+    public List<Category> findAllActive() {
+        return repository.findByActiveTrue().stream()
+                .map(mapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    public Optional<Category> findById(Long id) {
+        return repository.findById(id).map(mapper::toDomain);
+    }
+
+    @Override
+    public boolean existsById(Long id) {
+        return repository.existsById(id);
+    }
+}
+```
+
+#### Persistence Mappers
+
+```java
+// persistence/mapper/ProductPersistenceMapper.java
+@Component
+public class ProductPersistenceMapper {
+
+    private final CategoryPersistenceMapper categoryMapper;
+
+    public ProductPersistenceMapper(CategoryPersistenceMapper categoryMapper) {
         this.categoryMapper = categoryMapper;
     }
 
-    public Product toDomain(ProductDataEntity entity) {
+    public Product toDomain(ProductJpaEntity entity) {
         Category category = categoryMapper.toDomain(entity.getCategory());
         return Product.create(
-            entity.getId(),
-            entity.getName(),
-            entity.getDescription(),
-            entity.getPrice(),
-            entity.getStock(),
-            entity.getImageUrl(),
-            entity.isActive(),
-            category
+                entity.getId(),
+                entity.getName(),
+                entity.getDescription(),
+                entity.getPrice(),
+                entity.getStock(),
+                entity.getImageUrl(),
+                entity.isActive(),
+                category
         );
     }
 
-    public ProductDataEntity toDataEntity(Product product) {
-        CategoryDataEntity categoryEntity = categoryMapper.toDataEntity(product.getCategory());
-        return ProductDataEntity.builder()
-            .id(product.getId())
-            .name(product.getName())
-            .description(product.getDescription())
-            .price(product.getPrice())
-            .stock(product.getStock())
-            .imageUrl(product.getImageUrl())
-            .active(product.isActive())
-            .category(categoryEntity)
-            .build();
+    public ProductJpaEntity toJpaEntity(Product product) {
+        CategoryJpaEntity categoryEntity = categoryMapper.toJpaEntity(product.getCategory());
+        return ProductJpaEntity.builder()
+                .id(product.getId())
+                .name(product.getName())
+                .description(product.getDescription())
+                .price(product.getPrice())
+                .stock(product.getStock())
+                .imageUrl(product.getImageUrl())
+                .active(product.isActive())
+                .category(categoryEntity)
+                .build();
     }
 }
 ```
 
+### Configuration Layer (`config/`)
+
+This layer contains Spring configuration classes that wire everything together.
+
 ```java
-// framework/config/BeanConfiguration.java
+// config/BeanConfiguration.java
 @Configuration
 public class BeanConfiguration {
 
@@ -1015,14 +1106,14 @@ public class BeanConfiguration {
     }
 
     @Bean
-    public SearchProductsUseCase searchProductsUseCase(ProductGateway productGateway, 
-                                                        CategoryGateway categoryGateway) {
+    public SearchProductsUseCase searchProductsUseCase(ProductGateway productGateway,
+                                                       CategoryGateway categoryGateway) {
         return new SearchProductsInteractor(productGateway, categoryGateway);
     }
 
     @Bean
-    public CreateOrderUseCase createOrderUseCase(ProductGateway productGateway, 
-                                                  OrderGateway orderGateway) {
+    public CreateOrderUseCase createOrderUseCase(ProductGateway productGateway,
+                                                 OrderGateway orderGateway) {
         return new CreateOrderInteractor(productGateway, orderGateway);
     }
 }
@@ -1034,31 +1125,36 @@ public class BeanConfiguration {
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                          FRAMEWORKS & DRIVERS                                    │
+│                      OUTER LAYERS (Infrastructure)                               │
 │                                                                                  │
-│   framework/persistence/         framework/web/           framework/config/      │
-│   - JPA Entities                - Exception Handler      - BeanConfiguration     │
-│   - JPA Repositories            - OpenApiConfig          - DataInitializer       │
-│   - Data Mappers                                                                 │
-│   - Specifications                                                               │
+│   config/                                                                        │
+│   - BeanConfiguration                                                            │
+│   - OpenApiConfig                                                                │
+│   - DataInitializer                                                              │
 │                                                                                  │
 └───────────────────────────────────────┬─────────────────────────────────────────┘
-                                        │ implements
+                                        │ configures
                                         ▼
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                          INTERFACE ADAPTERS                                      │
+│                      ADAPTER LAYERS (presentation/ & persistence/)              │
 │                                                                                  │
-│   Controllers               Presenters               Gateway Impls               │
-│   - CategoryController      - CategoryPresenter      - CategoryGatewayImpl       │
-│   - ProductController       - ProductPresenter       - ProductGatewayImpl        │
-│   - OrderController         - OrderPresenter         - OrderGatewayImpl          │
-│                                                                                  │
-│   DTOs (Request/Response Models)                                                 │
-│   - CategoryResponseModel                                                        │
-│   - OrderCreateRequestModel                                                      │
+│   presentation/                        persistence/                              │
+│   ├── rest/controller/                 ├── entity/                               │
+│   │   - CategoryController             │   - CategoryJpaEntity                   │
+│   │   - ProductController              │   - ProductJpaEntity                    │
+│   │   - OrderController                │   - OrderJpaEntity                      │
+│   ├── rest/dto/                        ├── repository/                           │
+│   │   - CategoryResponse               │   - CategoryJpaRepository               │
+│   │   - OrderCreateRequest             │   - ProductJpaRepository                │
+│   ├── rest/mapper/                     ├── gateway/                              │
+│   │   - CategoryRestMapper             │   - CategoryGatewayImpl                 │
+│   │   - ProductRestMapper              │   - ProductGatewayImpl                  │
+│   └── presenter/                       └── mapper/                               │
+│       - CategoryPresenter                  - CategoryPersistenceMapper           │
+│       - OrderPresenter                     - ProductPersistenceMapper            │
 │                                                                                  │
 └───────────────────────────────────────┬─────────────────────────────────────────┘
-                                        │ uses
+                                        │ uses/implements
                                         ▼
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                              USE CASES                                           │
@@ -1093,7 +1189,9 @@ public class BeanConfiguration {
 
 ## MapStruct Integration
 
-Clean Architecture has multiple transformation boundaries: from request models to input data, from output data to response models, from domain entities to data entities, and so on. MapStruct simplifies all of these transformations while maintaining the strict dependency rules that Clean Architecture requires.
+Clean Architecture has multiple transformation boundaries: from request models to input data, from output data to
+response models, from domain entities to data entities, and so on. MapStruct simplifies all of these transformations
+while maintaining the strict dependency rules that Clean Architecture requires.
 
 ### Adding MapStruct Dependency
 
@@ -1107,164 +1205,166 @@ dependencies {
 }
 ```
 
-### Interface Adapter Mappers (View Models ↔ Use Case Data)
+### Presentation Mappers (View Models ↔ Use Case Data)
 
-These mappers handle the transformation between the HTTP layer's view models and the use case layer's input/output data structures.
+These mappers handle the transformation between the HTTP layer's view models and the use case layer's input/output data
+structures.
 
 ```java
-// interface_adapter/presenter/CategoryPresenter.java
+// presentation/presenter/CategoryPresenter.java
 @Mapper(componentModel = "spring")
 public interface CategoryPresenter {
-    
+
     // Output Data → Response Model
-    CategoryResponseModel toResponseModel(CategoryOutputData outputData);
-    
-    List<CategoryResponseModel> toResponseModelList(List<CategoryOutputData> outputDataList);
+    CategoryResponse toResponse(CategoryOutputData outputData);
+
+    List<CategoryResponse> toResponseList(List<CategoryOutputData> outputDataList);
 }
 ```
 
 ```java
-// interface_adapter/controller/OrderControllerMapper.java
+// presentation/rest/mapper/OrderRestMapper.java
 @Mapper(componentModel = "spring")
-public interface OrderControllerMapper {
-    
+public interface OrderRestMapper {
+
     // Request Model → Input Data
     @Mapping(source = "customerId", target = "customerId")
     @Mapping(source = "items", target = "items")
-    CreateOrderInputData toInputData(OrderCreateRequestModel request);
-    
+    CreateOrderInputData toInputData(OrderCreateRequest request);
+
     // Nested mapping for order items
     @Mapping(source = "productId", target = "productId")
     @Mapping(source = "quantity", target = "quantity")
-    OrderItemInputData toItemInputData(OrderItemRequestModel item);
-    
+    OrderItemInputData toItemInputData(OrderItemRequest item);
+
     // Shipping address mapping
-    default CreateOrderInputData mapWithShippingAddress(OrderCreateRequestModel request) {
+    default CreateOrderInputData mapWithShippingAddress(OrderCreateRequest request) {
         return new CreateOrderInputData(
-            request.customerId(),
-            request.items().stream().map(this::toItemInputData).toList(),
-            request.shippingAddress().street(),
-            request.shippingAddress().city(),
-            request.shippingAddress().state(),
-            request.shippingAddress().zipCode(),
-            request.shippingAddress().country()
+                request.customerId(),
+                request.items().stream().map(this::toItemInputData).toList(),
+                request.shippingAddress().street(),
+                request.shippingAddress().city(),
+                request.shippingAddress().state(),
+                request.shippingAddress().zipCode(),
+                request.shippingAddress().country()
         );
     }
 }
 ```
 
 ```java
-// interface_adapter/presenter/OrderPresenter.java
+// presentation/presenter/OrderPresenter.java
 @Mapper(componentModel = "spring")
 public interface OrderPresenter {
-    
+
     // Output Data → Response Model
     @Mapping(source = "orderId", target = "orderId")
     @Mapping(source = "status", target = "status")
     @Mapping(source = "items", target = "items")
-    OrderResponseModel toResponseModel(OrderOutputData outputData);
-    
+    OrderResponse toResponse(OrderOutputData outputData);
+
     // Nested item mapping
-    OrderItemResponseModel toItemResponseModel(OrderItemOutputData itemData);
+    OrderItemResponse toItemResponse(OrderItemOutputData itemData);
 }
 ```
 
-### Gateway Mapper (Domain Entities ↔ Data Entities)
+### Persistence Mappers (Domain Entities ↔ JPA Entities)
 
-These mappers handle the transformation between the innermost entities and the outermost data entities.
+These mappers handle the transformation between the innermost domain entities and the persistence layer's JPA entities.
 
 ```java
-// framework/persistence/mapper/CategoryDataMapper.java
+// persistence/mapper/CategoryPersistenceMapper.java
 @Mapper(componentModel = "spring")
-public interface CategoryDataMapper {
-    
-    // Data Entity → Domain Entity
+public interface CategoryPersistenceMapper {
+
+    // JPA Entity → Domain Entity
     @Mapping(source = "id", target = "id")
     @Mapping(source = "name", target = "name")
     @Mapping(source = "description", target = "description")
     @Mapping(source = "active", target = "active")
     @Mapping(source = "createdAt", target = "createdAt")
-    Category toDomain(CategoryDataEntity dataEntity);
-    
-    List<Category> toDomainList(List<CategoryDataEntity> dataEntities);
-    
-    // Domain Entity → Data Entity
+    Category toDomain(CategoryJpaEntity jpaEntity);
+
+    List<Category> toDomainList(List<CategoryJpaEntity> jpaEntities);
+
+    // Domain Entity → JPA Entity
     @Mapping(source = "id", target = "id")
     @Mapping(source = "name", target = "name")
     @Mapping(source = "description", target = "description")
     @Mapping(source = "active", target = "active")
     @Mapping(source = "createdAt", target = "createdAt")
-    CategoryDataEntity toDataEntity(Category category);
+    CategoryJpaEntity toJpaEntity(Category category);
 }
 ```
 
 ```java
-// framework/persistence/mapper/ProductDataMapper.java
-@Mapper(componentModel = "spring", uses = {CategoryDataMapper.class})
-public interface ProductDataMapper {
-    
-    // Data Entity → Domain Entity
-    // MapStruct will use CategoryDataMapper automatically for the category field
-    Product toDomain(ProductDataEntity dataEntity);
-    
-    List<Product> toDomainList(List<ProductDataEntity> dataEntities);
-    
-    // Domain Entity → Data Entity
-    @Mapping(target = "id", ignore = true) // ID managed by persistence
-    ProductDataEntity toDataEntity(Product product);
-    
+// persistence/mapper/ProductPersistenceMapper.java
+@Mapper(componentModel = "spring", uses = {CategoryPersistenceMapper.class})
+public interface ProductPersistenceMapper {
+
+    // JPA Entity → Domain Entity
+    // MapStruct will use CategoryPersistenceMapper automatically for the category field
+    Product toDomain(ProductJpaEntity jpaEntity);
+
+    List<Product> toDomainList(List<ProductJpaEntity> jpaEntities);
+
+    // Domain Entity → JPA Entity
+    @Mapping(target = "id", ignore = true)
+    // ID managed by persistence
+    ProductJpaEntity toJpaEntity(Product product);
+
     // For updates where ID should be preserved
     @Mapping(target = "id", source = "id")
-    ProductDataEntity toDataEntityWithId(Product product);
+    ProductJpaEntity toJpaEntityWithId(Product product);
 }
 ```
 
 ```java
-// framework/persistence/mapper/OrderDataMapper.java
-@Mapper(componentModel = "spring", uses = {OrderItemDataMapper.class})
-public interface OrderDataMapper {
-    
-    // Data Entity → Domain Entity
+// persistence/mapper/OrderPersistenceMapper.java
+@Mapper(componentModel = "spring", uses = {OrderItemPersistenceMapper.class})
+public interface OrderPersistenceMapper {
+
+    // JPA Entity → Domain Entity
     // Use factory method to create domain object correctly
-    default Order toDomain(OrderDataEntity dataEntity) {
-        List<OrderItem> items = dataEntity.getItems().stream()
-            .map(this::itemToDomain)
-            .toList();
-        
+    default Order toDomain(OrderJpaEntity jpaEntity) {
+        List<OrderItem> items = jpaEntity.getItems().stream()
+                .map(this::itemToDomain)
+                .toList();
+
         ShippingAddress shippingAddress = new ShippingAddress(
-            dataEntity.getShippingStreet(),
-            dataEntity.getShippingCity(),
-            dataEntity.getShippingState(),
-            dataEntity.getShippingZipCode(),
-            dataEntity.getShippingCountry()
+                jpaEntity.getShippingStreet(),
+                jpaEntity.getShippingCity(),
+                jpaEntity.getShippingState(),
+                jpaEntity.getShippingZipCode(),
+                jpaEntity.getShippingCountry()
         );
-        
+
         return Order.reconstitute(
-            dataEntity.getId(),
-            dataEntity.getCustomerId(),
-            dataEntity.getStatus(),
-            items,
-            dataEntity.getSubtotal(),
-            dataEntity.getTax(),
-            dataEntity.getTotal(),
-            dataEntity.getCreatedAt(),
-            shippingAddress
+                jpaEntity.getId(),
+                jpaEntity.getCustomerId(),
+                jpaEntity.getStatus(),
+                items,
+                jpaEntity.getSubtotal(),
+                jpaEntity.getTax(),
+                jpaEntity.getTotal(),
+                jpaEntity.getCreatedAt(),
+                shippingAddress
         );
     }
-    
+
     // Helper method for item conversion
-    default OrderItem itemToDomain(OrderItemDataEntity itemEntity) {
+    default OrderItem itemToDomain(OrderItemJpaEntity itemEntity) {
         return OrderItem.reconstitute(
-            itemEntity.getId(),
-            itemEntity.getProduct().getId(),
-            itemEntity.getProduct().getName(),
-            itemEntity.getUnitPrice(),
-            itemEntity.getQuantity(),
-            itemEntity.getSubtotal()
+                itemEntity.getId(),
+                itemEntity.getProduct().getId(),
+                itemEntity.getProduct().getName(),
+                itemEntity.getUnitPrice(),
+                itemEntity.getQuantity(),
+                itemEntity.getSubtotal()
         );
     }
-    
-    // Domain Entity → Data Entity
+
+    // Domain Entity → JPA Entity
     @Mapping(target = "id", ignore = true)
     @Mapping(source = "customerId", target = "customerId")
     @Mapping(source = "status", target = "status")
@@ -1276,70 +1376,72 @@ public interface OrderDataMapper {
     @Mapping(source = "shippingAddress.state", target = "shippingState")
     @Mapping(source = "shippingAddress.zipCode", target = "shippingZipCode")
     @Mapping(source = "shippingAddress.country", target = "shippingCountry")
-    @Mapping(target = "items", ignore = true) // Handled separately
-    OrderDataEntity toDataEntity(Order order);
+    @Mapping(target = "items", ignore = true)
+    // Handled separately
+    OrderJpaEntity toJpaEntity(Order order);
 }
 ```
 
 ### Using Mappers in Clean Architecture
 
-The beauty of Clean Architecture is that mappers respect the dependency rule. Outer layers depend on inner layers through these mappers.
+The beauty of Clean Architecture is that mappers respect the dependency rule. Outer layers depend on inner layers
+through these mappers.
 
 ```java
-// interface_adapter/controller/OrderController.java
+// presentation/rest/controller/OrderController.java
 @RestController
 @RequestMapping("/api/v1/orders")
 @RequiredArgsConstructor
 public class OrderController {
-    
+
     private final CreateOrderUseCase createOrderUseCase;
     private final OrderPresenter presenter;
-    private final OrderControllerMapper controllerMapper;
+    private final OrderRestMapper restMapper;
 
     @PostMapping
-    public ResponseEntity<OrderResponseModel> create(
-            @Valid @RequestBody OrderCreateRequestModel request) {
-        
+    public ResponseEntity<OrderResponse> create(
+            @Valid @RequestBody OrderCreateRequest request) {
+
         // Map request to input data (outer → inner)
-        CreateOrderInputData inputData = controllerMapper.mapWithShippingAddress(request);
-        
+        CreateOrderInputData inputData = restMapper.mapWithShippingAddress(request);
+
         // Execute use case (stays in inner circles)
         OrderOutputData outputData = createOrderUseCase.execute(inputData);
-        
+
         // Present result (inner → outer)
-        OrderResponseModel response = presenter.toResponseModel(outputData);
-        
+        OrderResponse response = presenter.toResponse(outputData);
+
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }
 ```
 
 ```java
-// interface_adapter/gateway/ProductGatewayImpl.java
+// persistence/gateway/ProductGatewayImpl.java
 @Component
 @RequiredArgsConstructor
 public class ProductGatewayImpl implements ProductGateway {
-    
+
     private final ProductJpaRepository jpaRepository;
-    private final ProductDataMapper mapper;
+    private final ProductPersistenceMapper mapper;
 
     @Override
     public Optional<Product> findById(Long id) {
-        // Data layer → Domain layer transformation
+        // Persistence layer → Domain layer transformation
         return jpaRepository.findById(id)
-            .map(mapper::toDomain);
+                .map(mapper::toDomain);
     }
 
     @Override
     public Product save(Product product) {
-        // Domain layer → Data layer transformation
-        ProductDataEntity entity = product.getId() == null
-            ? mapper.toDataEntity(product)
-            : mapper.toDataEntityWithId(product);
-        
-        ProductDataEntity saved = jpaRepository.save(entity);
-        
-        // Data layer → Domain layer transformation
+        // Domain layer → Persistence layer transformation
+        ProductJpaEntity entity = product.getId() == null
+                ? mapper.toJpaEntity(product)
+                : mapper.toJpaEntityWithId(product);
+
+        ProductJpaEntity saved = jpaRepository.save(entity);
+
+        // Persistence layer → Domain layer transformation
         return mapper.toDomain(saved);
     }
 }
@@ -1349,7 +1451,10 @@ public class ProductGatewayImpl implements ProductGateway {
 
 ## Testing Strategy
 
-Clean Architecture provides exceptional testability because of its strict separation of concerns and dependency rules. You can test each layer in isolation, and the innermost layers require no infrastructure at all. The testing strategy follows the same circular structure as the architecture itself, with the most critical business logic tests being the fastest and most isolated.
+Clean Architecture provides exceptional testability because of its strict separation of concerns and dependency rules.
+You can test each layer in isolation, and the innermost layers require no infrastructure at all. The testing strategy
+follows the same circular structure as the architecture itself, with the most critical business logic tests being the
+fastest and most isolated.
 
 ### Test Dependencies
 
@@ -1368,77 +1473,78 @@ dependencies {
 
 ### Entity Layer Tests (Innermost Circle)
 
-These are the fastest tests you will write because entities have zero dependencies. They verify your core business rules using pure Java with no frameworks, no mocks, nothing but logic.
+These are the fastest tests you will write because entities have zero dependencies. They verify your core business rules
+using pure Java with no frameworks, no mocks, nothing but logic.
 
 ```java
 // entity/ProductTest.java
 class ProductTest {
-    
+
     @Test
     void create_withValidData_createsProduct() {
         // Given
         Category category = Category.create(1L, "Electronics", "Electronic devices", true, OffsetDateTime.now());
-        
+
         // When
         Product product = Product.create(
-            1L,
-            "Gaming Laptop",
-            "High-performance laptop",
-            new BigDecimal("1299.99"),
-            10,
-            "laptop.jpg",
-            true,
-            category
+                1L,
+                "Gaming Laptop",
+                "High-performance laptop",
+                new BigDecimal("1299.99"),
+                10,
+                "laptop.jpg",
+                true,
+                category
         );
-        
+
         // Then
         assertNotNull(product);
         assertEquals("Gaming Laptop", product.getName());
         assertEquals(new BigDecimal("1299.99"), product.getPrice());
         assertTrue(product.isActive());
     }
-    
+
     @Test
     void create_withNullName_throwsException() {
         // Given
         Category category = Category.create(1L, "Electronics", "Electronic devices", true, OffsetDateTime.now());
-        
+
         // When & Then
         assertThrows(IllegalArgumentException.class, () ->
-            Product.create(1L, null, "Description", BigDecimal.TEN, 5, "img.jpg", true, category)
+                Product.create(1L, null, "Description", BigDecimal.TEN, 5, "img.jpg", true, category)
         );
     }
-    
+
     @Test
     void create_withNegativePrice_throwsException() {
         // Given
         Category category = Category.create(1L, "Electronics", "Electronic devices", true, OffsetDateTime.now());
-        
+
         // When & Then
         assertThrows(IllegalArgumentException.class, () ->
-            Product.create(1L, "Product", "Description", new BigDecimal("-10"), 5, "img.jpg", true, category)
+                Product.create(1L, "Product", "Description", new BigDecimal("-10"), 5, "img.jpg", true, category)
         );
     }
-    
+
     @Test
     void reduceStock_withSufficientQuantity_reducesSuccessfully() {
         // Given
         Category category = Category.create(1L, "Electronics", "Electronic devices", true, OffsetDateTime.now());
         Product product = Product.create(1L, "Laptop", "Desc", BigDecimal.TEN, 10, "img.jpg", true, category);
-        
+
         // When
         product.reduceStock(3);
-        
+
         // Then
         assertEquals(7, product.getStock());
     }
-    
+
     @Test
     void reduceStock_withInsufficientQuantity_throwsException() {
         // Given
         Category category = Category.create(1L, "Electronics", "Electronic devices", true, OffsetDateTime.now());
         Product product = Product.create(1L, "Laptop", "Desc", BigDecimal.TEN, 5, "img.jpg", true, category);
-        
+
         // When & Then
         assertThrows(IllegalStateException.class, () -> product.reduceStock(10));
     }
@@ -1448,21 +1554,21 @@ class ProductTest {
 ```java
 // entity/OrderTest.java
 class OrderTest {
-    
+
     @Test
     void createNew_withValidData_calculatesTotalsCorrectly() {
         // Given
         OrderItem item1 = OrderItem.create(1L, "Laptop", new BigDecimal("1000.00"), 2);
         OrderItem item2 = OrderItem.create(2L, "Mouse", new BigDecimal("50.00"), 1);
         List<OrderItem> items = List.of(item1, item2);
-        
+
         ShippingAddress address = new ShippingAddress(
-            "123 Main St", "Springfield", "IL", "62701", "USA"
+                "123 Main St", "Springfield", "IL", "62701", "USA"
         );
-        
+
         // When
         Order order = Order.createNew(1L, items, address);
-        
+
         // Then
         assertEquals(new BigDecimal("2050.00"), order.getSubtotal());
         assertEquals(new BigDecimal("164.00"), order.getTax()); // 8% of 2050
@@ -1470,28 +1576,28 @@ class OrderTest {
         assertEquals(OrderStatus.PENDING, order.getStatus());
         assertNotNull(order.getCreatedAt());
     }
-    
+
     @Test
     void createNew_withEmptyItems_throwsException() {
         // Given
         ShippingAddress address = new ShippingAddress(
-            "123 Main St", "Springfield", "IL", "62701", "USA"
+                "123 Main St", "Springfield", "IL", "62701", "USA"
         );
-        
+
         // When & Then
         assertThrows(IllegalArgumentException.class, () ->
-            Order.createNew(1L, List.of(), address)
+                Order.createNew(1L, List.of(), address)
         );
     }
-    
+
     @Test
     void createNew_withNullShippingAddress_throwsException() {
         // Given
         OrderItem item = OrderItem.create(1L, "Laptop", new BigDecimal("1000.00"), 1);
-        
+
         // When & Then
         assertThrows(IllegalArgumentException.class, () ->
-            Order.createNew(1L, List.of(item), null)
+                Order.createNew(1L, List.of(item), null)
         );
     }
 }
@@ -1499,164 +1605,166 @@ class OrderTest {
 
 ### Use Case Tests (Application Business Rules)
 
-These tests verify the orchestration logic in your interactors. You mock the gateways to isolate the use case logic from infrastructure concerns.
+These tests verify the orchestration logic in your interactors. You mock the gateways to isolate the use case logic from
+infrastructure concerns.
 
 ```java
 // usecase/order/CreateOrderInteractorTest.java
 @ExtendWith(MockitoExtension.class)
 class CreateOrderInteractorTest {
-    
+
     @Mock
     private ProductGateway productGateway;
-    
+
     @Mock
     private OrderGateway orderGateway;
-    
+
     private CreateOrderInteractor interactor;
-    
+
     @BeforeEach
     void setUp() {
         interactor = new CreateOrderInteractor(productGateway, orderGateway);
     }
-    
+
     @Test
     void execute_withValidInput_createsOrderAndUpdatesStock() {
         // Given
         Category category = Category.create(1L, "Electronics", "desc", true, OffsetDateTime.now());
         Product product = Product.create(
-            1L, "Laptop", "Gaming laptop", 
-            new BigDecimal("1000.00"), 10, "img.jpg", true, category
+                1L, "Laptop", "Gaming laptop",
+                new BigDecimal("1000.00"), 10, "img.jpg", true, category
         );
-        
+
         CreateOrderInputData input = new CreateOrderInputData(
-            1L,
-            List.of(new OrderItemInputData(1L, 2)),
-            "123 Main St", "Springfield", "IL", "62701", "USA"
+                1L,
+                List.of(new OrderItemInputData(1L, 2)),
+                "123 Main St", "Springfield", "IL", "62701", "USA"
         );
-        
+
         when(productGateway.findAllByIds(anyList())).thenReturn(List.of(product));
         when(orderGateway.save(any(Order.class))).thenAnswer(invocation -> {
             Order order = invocation.getArgument(0);
             order.assignId(100L);
             return order;
         });
-        
+
         // When
         OrderOutputData result = interactor.execute(input);
-        
+
         // Then
         assertNotNull(result);
         assertEquals(100L, result.orderId());
         assertEquals("PENDING", result.status());
         assertEquals(2, result.items().size());
-        
+
         verify(productGateway).findAllByIds(List.of(1L));
         verify(orderGateway).save(any(Order.class));
         verify(productGateway).save(argThat(p -> p.getStock() == 8)); // Verify stock reduction
     }
-    
+
     @Test
     void execute_withInsufficientStock_throwsException() {
         // Given
         Category category = Category.create(1L, "Electronics", "desc", true, OffsetDateTime.now());
         Product product = Product.create(
-            1L, "Laptop", "Gaming laptop", 
-            new BigDecimal("1000.00"), 1, "img.jpg", true, category
+                1L, "Laptop", "Gaming laptop",
+                new BigDecimal("1000.00"), 1, "img.jpg", true, category
         );
-        
+
         CreateOrderInputData input = new CreateOrderInputData(
-            1L,
-            List.of(new OrderItemInputData(1L, 5)), // Requesting more than available
-            "123 Main St", "Springfield", "IL", "62701", "USA"
+                1L,
+                List.of(new OrderItemInputData(1L, 5)), // Requesting more than available
+                "123 Main St", "Springfield", "IL", "62701", "USA"
         );
-        
+
         when(productGateway.findAllByIds(anyList())).thenReturn(List.of(product));
-        
+
         // When & Then
         assertThrows(BusinessRuleException.class, () -> interactor.execute(input));
         verify(orderGateway, never()).save(any());
     }
-    
+
     @Test
     void execute_withInactiveProduct_throwsException() {
         // Given
         Category category = Category.create(1L, "Electronics", "desc", true, OffsetDateTime.now());
         Product product = Product.create(
-            1L, "Laptop", "Gaming laptop", 
-            new BigDecimal("1000.00"), 10, "img.jpg", false, category // Inactive!
+                1L, "Laptop", "Gaming laptop",
+                new BigDecimal("1000.00"), 10, "img.jpg", false, category // Inactive!
         );
-        
+
         CreateOrderInputData input = new CreateOrderInputData(
-            1L,
-            List.of(new OrderItemInputData(1L, 2)),
-            "123 Main St", "Springfield", "IL", "62701", "USA"
+                1L,
+                List.of(new OrderItemInputData(1L, 2)),
+                "123 Main St", "Springfield", "IL", "62701", "USA"
         );
-        
+
         when(productGateway.findAllByIds(anyList())).thenReturn(List.of(product));
-        
+
         // When & Then
         assertThrows(BusinessRuleException.class, () -> interactor.execute(input));
     }
 }
 ```
 
-### Gateway Implementation Tests (Infrastructure Layer)
+### Gateway Implementation Tests (Persistence Layer)
 
-These integration tests verify that your gateway implementations correctly interact with the database and perform the necessary transformations between entities and data entities.
+These integration tests verify that your gateway implementations correctly interact with the database and perform the
+necessary transformations between domain entities and JPA entities.
 
 ```java
-// interface_adapter/gateway/ProductGatewayImplTest.java
+// persistence/gateway/ProductGatewayImplTest.java
 @DataJpaTest
 @Testcontainers
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({ProductGatewayImpl.class, ProductDataMapperImpl.class, CategoryDataMapperImpl.class})
+@Import({ProductGatewayImpl.class, ProductPersistenceMapperImpl.class, CategoryPersistenceMapperImpl.class})
 class ProductGatewayImplTest {
-    
+
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15-alpine");
-    
+
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
     }
-    
+
     @Autowired
     private ProductGatewayImpl gateway;
-    
+
     @Autowired
     private ProductJpaRepository jpaRepository;
-    
+
     @Autowired
     private CategoryJpaRepository categoryJpaRepository;
-    
+
     @Test
     void findById_existingProduct_returnsProduct() {
         // Given - create test data in database
-        CategoryDataEntity categoryEntity = categoryJpaRepository.save(
-            CategoryDataEntity.builder()
-                .name("Electronics")
-                .description("Electronic devices")
-                .active(true)
-                .build()
+        CategoryJpaEntity categoryEntity = categoryJpaRepository.save(
+                CategoryJpaEntity.builder()
+                        .name("Electronics")
+                        .description("Electronic devices")
+                        .active(true)
+                        .build()
         );
-        
-        ProductDataEntity productEntity = jpaRepository.save(
-            ProductDataEntity.builder()
-                .name("Gaming Laptop")
-                .description("High-performance laptop")
-                .price(new BigDecimal("1299.99"))
-                .stock(10)
-                .imageUrl("laptop.jpg")
-                .active(true)
-                .category(categoryEntity)
-                .build()
+
+        ProductJpaEntity productEntity = jpaRepository.save(
+                ProductJpaEntity.builder()
+                        .name("Gaming Laptop")
+                        .description("High-performance laptop")
+                        .price(new BigDecimal("1299.99"))
+                        .stock(10)
+                        .imageUrl("laptop.jpg")
+                        .active(true)
+                        .category(categoryEntity)
+                        .build()
         );
-        
+
         // When - use gateway (returns domain entity)
         Optional<Product> result = gateway.findById(productEntity.getId());
-        
+
         // Then - verify domain entity
         assertTrue(result.isPresent());
         Product product = result.get();
@@ -1665,161 +1773,188 @@ class ProductGatewayImplTest {
         assertEquals(10, product.getStock());
         assertTrue(product.isActive());
     }
-    
+
     @Test
     void save_newProduct_persistsAndReturnsWithId() {
         // Given - create domain entity
         Category category = Category.create(1L, "Electronics", "desc", true, OffsetDateTime.now());
         Product product = Product.create(
-            null, // No ID yet
-            "Wireless Mouse",
-            "Ergonomic wireless mouse",
-            new BigDecimal("39.99"),
-            50,
-            "mouse.jpg",
-            true,
-            category
+                null, // No ID yet
+                "Wireless Mouse",
+                "Ergonomic wireless mouse",
+                new BigDecimal("39.99"),
+                50,
+                "mouse.jpg",
+                true,
+                category
         );
-        
+
         // When
         Product saved = gateway.save(product);
-        
+
         // Then
         assertNotNull(saved.getId());
         assertEquals("Wireless Mouse", saved.getName());
-        
+
         // Verify it's actually in the database
-        Optional<ProductDataEntity> inDb = jpaRepository.findById(saved.getId());
+        Optional<ProductJpaEntity> inDb = jpaRepository.findById(saved.getId());
         assertTrue(inDb.isPresent());
         assertEquals("Wireless Mouse", inDb.get().getName());
     }
 }
 ```
 
-### Controller Tests (Interface Adapters)
+### Controller Tests (Presentation Layer)
 
-These tests verify that your controllers properly handle HTTP requests and transform between view models and use case input/output data.
+These tests verify that your controllers properly handle HTTP requests and transform between view models and use case
+input/output data.
 
 ```java
-// interface_adapter/controller/CategoryControllerTest.java
+// presentation/rest/controller/CategoryControllerTest.java
 @WebMvcTest(CategoryController.class)
 class CategoryControllerTest {
-    
+
     @Autowired
     private MockMvc mockMvc;
-    
+
     @MockBean
     private GetAllCategoriesUseCase getAllCategoriesUseCase;
-    
+
     @MockBean
     private CategoryPresenter presenter;
-    
+
     @Test
     void getAll_returnsCategories() throws Exception {
         // Given
         CategoryOutputData outputData = new CategoryOutputData(
-            1L, "Electronics", "Electronic devices", true, OffsetDateTime.now()
+                1L, "Electronics", "Electronic devices", true, OffsetDateTime.now()
         );
-        CategoryResponseModel responseModel = new CategoryResponseModel(
-            1L, "Electronics", "Electronic devices", true, OffsetDateTime.now()
+        CategoryResponse response = new CategoryResponse(
+                1L, "Electronics", "Electronic devices", true, OffsetDateTime.now()
         );
-        
+
         when(getAllCategoriesUseCase.execute()).thenReturn(List.of(outputData));
-        when(presenter.toResponseModel(outputData)).thenReturn(responseModel);
-        
+        when(presenter.toResponse(outputData)).thenReturn(response);
+
         // When & Then
         mockMvc.perform(get("/api/v1/categories")
-                .contentType(MediaType.APPLICATION_JSON))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$[0].id").value(1))
-            .andExpect(jsonPath("$[0].name").value("Electronics"))
-            .andExpect(jsonPath("$[0].active").value(true));
-        
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(1))
+                .andExpect(jsonPath("$[0].name").value("Electronics"))
+                .andExpect(jsonPath("$[0].active").value(true));
+
         verify(getAllCategoriesUseCase).execute();
-        verify(presenter).toResponseModel(outputData);
+        verify(presenter).toResponse(outputData);
     }
 }
 ```
 
 ### Full Integration Tests
 
-These tests verify the entire application stack working together, exercising all layers from HTTP request to database and back.
+These tests verify the entire application stack working together, exercising all layers from HTTP request to database
+and back.
 
 ```java
 // integration/CreateOrderFullStackTest.java
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
 class CreateOrderFullStackTest {
-    
+
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15-alpine");
-    
+
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
     }
-    
+
     @Autowired
     private TestRestTemplate restTemplate;
-    
+
     @Autowired
     private ProductJpaRepository productRepository;
-    
+
     @Autowired
     private CategoryJpaRepository categoryRepository;
-    
+
     @BeforeEach
     void setUp() {
-        CategoryDataEntity category = categoryRepository.save(
-            CategoryDataEntity.builder()
-                .name("Electronics")
-                .description("Electronic devices")
-                .active(true)
-                .build()
+        CategoryJpaEntity category = categoryRepository.save(
+                CategoryJpaEntity.builder()
+                        .name("Electronics")
+                        .description("Electronic devices")
+                        .active(true)
+                        .build()
         );
-        
+
         productRepository.save(
-            ProductDataEntity.builder()
-                .name("Gaming Laptop")
-                .description("High-performance laptop")
-                .price(new BigDecimal("1299.99"))
-                .stock(10)
-                .active(true)
-                .category(category)
-                .build()
+                ProductJpaEntity.builder()
+                        .name("Gaming Laptop")
+                        .description("High-performance laptop")
+                        .price(new BigDecimal("1299.99"))
+                        .stock(10)
+                        .active(true)
+                        .category(category)
+                        .build()
         );
     }
-    
+
     @Test
     void createOrder_withValidData_returnsCreatedOrder() {
         // Given
-        OrderCreateRequestModel request = new OrderCreateRequestModel(
-            1L,
-            List.of(new OrderItemRequestModel(1L, 2)),
-            new ShippingAddressRequestModel("123 Main St", "Springfield", "IL", "62701", "USA")
+        OrderCreateRequest request = new OrderCreateRequest(
+                1L,
+                List.of(new OrderItemRequest(1L, 2)),
+                new ShippingAddressRequest("123 Main St", "Springfield", "IL", "62701", "USA")
         );
-        
+
         // When
-        ResponseEntity<OrderResponseModel> response = restTemplate.postForEntity(
-            "/api/v1/orders",
-            request,
-            OrderResponseModel.class
+        ResponseEntity<OrderResponse> response = restTemplate.postForEntity(
+                "/api/v1/orders",
+                request,
+                OrderResponse.class
         );
-        
+
         // Then
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());
         assertNotNull(response.getBody().orderId());
         assertEquals("PENDING", response.getBody().status());
         assertTrue(response.getBody().total().compareTo(BigDecimal.ZERO) > 0);
-        
+
         // Verify stock was updated in database
-        ProductDataEntity product = productRepository.findById(1L).orElseThrow();
+        ProductJpaEntity product = productRepository.findById(1L).orElseThrow();
         assertEquals(8, product.getStock()); // 10 - 2
     }
 }
+```
+
+### Build Dependencies
+
+Add ArchUnit to your project to enforce Clean Architecture's dependency rules at build time.
+
+**Gradle (build.gradle):**
+
+```groovy
+dependencies {
+    // ArchUnit for architecture testing
+    testImplementation 'com.tngtech.archunit:archunit-junit5:1.2.1'
+}
+```
+
+**Maven (pom.xml):**
+
+```xml
+
+<dependency>
+    <groupId>com.tngtech.archunit</groupId>
+    <artifactId>archunit-junit5</artifactId>
+    <version>1.2.1</version>
+    <scope>test</scope>
+</dependency>
 ```
 
 ### Architecture Tests
@@ -1828,71 +1963,268 @@ Use ArchUnit to enforce Clean Architecture's dependency rules automatically.
 
 ```java
 // architecture/CleanArchitectureTest.java
+package app.quantun.architecture.archtest;
+
+import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.importer.ClassFileImporter;
+import com.tngtech.archunit.core.importer.ImportOption;
+import com.tngtech.archunit.lang.ArchRule;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.*;
+import static com.tngtech.archunit.library.Architectures.onionArchitecture;
+import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
+
+@DisplayName("Clean Architecture Rules")
 class CleanArchitectureTest {
-    
+
     private static final String BASE_PACKAGE = "app.quantun.architecture";
-    private final JavaClasses classes = new ClassFileImporter()
-        .importPackages(BASE_PACKAGE);
-    
-    @Test
-    void entitiesShouldNotDependOnUseCases() {
-        ArchRule rule = noClasses()
-            .that().resideInAPackage("..entity..")
-            .should().dependOnClassesThat()
-            .resideInAPackage("..usecase..");
-        
-        rule.check(classes);
+    private static JavaClasses classes;
+
+    @BeforeAll
+    static void setUp() {
+        classes = new ClassFileImporter()
+                .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
+                .importPackages(BASE_PACKAGE);
     }
-    
-    @Test
-    void entitiesShouldNotDependOnInterfaceAdapters() {
-        ArchRule rule = noClasses()
-            .that().resideInAPackage("..entity..")
-            .should().dependOnClassesThat()
-            .resideInAnyPackage("..interface_adapter..", "..controller..", "..presenter..");
-        
-        rule.check(classes);
+
+    @Nested
+    @DisplayName("Dependency Rule - Inward Only")
+    class DependencyRule {
+
+        @Test
+        @DisplayName("Should follow onion architecture (Clean Architecture variant)")
+        void shouldFollowOnionArchitecture() {
+            ArchRule rule = onionArchitecture()
+                    .domainModels("..entity..")
+                    .domainServices("..usecase..")
+                    .applicationServices("..presentation..", "..persistence..")
+                    .adapter("config", "..config..");
+
+            rule.check(classes);
+        }
+
+        @Test
+        @DisplayName("Entities should not depend on Use Cases")
+        void entitiesShouldNotDependOnUseCases() {
+            ArchRule rule = noClasses()
+                    .that().resideInAPackage("..entity..")
+                    .should().dependOnClassesThat()
+                    .resideInAPackage("..usecase..");
+
+            rule.check(classes);
+        }
+
+        @Test
+        @DisplayName("Entities should not depend on Presentation or Persistence layers")
+        void entitiesShouldNotDependOnOuterLayers() {
+            ArchRule rule = noClasses()
+                    .that().resideInAPackage("..entity..")
+                    .should().dependOnClassesThat()
+                    .resideInAnyPackage("..presentation..", "..persistence..", "..controller..", "..presenter..");
+
+            rule.check(classes);
+        }
+
+        @Test
+        @DisplayName("Entities should not depend on Frameworks")
+        void entitiesShouldNotDependOnFrameworks() {
+            ArchRule rule = noClasses()
+                    .that().resideInAPackage("..entity..")
+                    .should().dependOnClassesThat()
+                    .resideInAnyPackage("..config..", "org.springframework..")
+                    .because("Entities are the innermost layer and must be framework-independent");
+
+            rule.check(classes);
+        }
+
+        @Test
+        @DisplayName("Use Cases should not depend on Presentation or Persistence layers")
+        void useCasesShouldNotDependOnOuterLayers() {
+            ArchRule rule = noClasses()
+                    .that().resideInAPackage("..usecase..")
+                    .should().dependOnClassesThat()
+                    .resideInAnyPackage("..presentation..", "..persistence..");
+
+            rule.check(classes);
+        }
+
+        @Test
+        @DisplayName("Use Cases should not depend on Frameworks")
+        void useCasesShouldNotDependOnFrameworks() {
+            ArchRule rule = noClasses()
+                    .that().resideInAPackage("..usecase..")
+                    .should().dependOnClassesThat()
+                    .resideInAnyPackage("..config..", "org.springframework..")
+                    .because("Use cases should be framework-independent");
+
+            rule.check(classes);
+        }
+
+        @Test
+        @DisplayName("Presentation layer should not depend on Persistence layer")
+        void presentationShouldNotDependOnPersistence() {
+            ArchRule rule = noClasses()
+                    .that().resideInAPackage("..presentation..")
+                    .should().dependOnClassesThat()
+                    .resideInAPackage("..persistence..")
+                    .because("Presentation and Persistence are separate adapter layers");
+
+            rule.check(classes);
+        }
     }
-    
-    @Test
-    void entitiesShouldNotDependOnFrameworks() {
-        ArchRule rule = noClasses()
-            .that().resideInAPackage("..entity..")
-            .should().dependOnClassesThat()
-            .resideInAnyPackage("..framework..", "org.springframework..");
-        
-        rule.check(classes);
+
+    @Nested
+    @DisplayName("Naming Conventions")
+    class NamingConventions {
+
+        @Test
+        @DisplayName("Controllers should be suffixed with Controller")
+        void controllersShouldBeSuffixed() {
+            ArchRule rule = classes()
+                    .that().resideInAPackage("..controller..")
+                    .and().areAnnotatedWith(org.springframework.web.bind.annotation.RestController.class)
+                    .should().haveSimpleNameEndingWith("Controller");
+
+            rule.check(classes);
+        }
+
+        @Test
+        @DisplayName("Interactors should be suffixed with Interactor")
+        void interactorsShouldBeSuffixed() {
+            ArchRule rule = classes()
+                    .that().resideInAPackage("..usecase..")
+                    .and().haveSimpleNameNotEndingWith("UseCase")
+                    .and().haveSimpleNameNotEndingWith("Data")
+                    .and().areNotInterfaces()
+                    .should().haveSimpleNameEndingWith("Interactor");
+
+            rule.check(classes);
+        }
+
+        @Test
+        @DisplayName("Gateways should be suffixed with Gateway")
+        void gatewaysShouldBeSuffixed() {
+            ArchRule rule = classes()
+                    .that().resideInAPackage("..usecase.gateway..")
+                    .should().haveSimpleNameEndingWith("Gateway");
+
+            rule.check(classes);
+        }
+
+        @Test
+        @DisplayName("Presenters should be suffixed with Presenter")
+        void presentersShouldBeSuffixed() {
+            ArchRule rule = classes()
+                    .that().resideInAPackage("..presenter..")
+                    .should().haveSimpleNameEndingWith("Presenter");
+
+            rule.check(classes);
+        }
     }
-    
-    @Test
-    void useCasesShouldNotDependOnInterfaceAdapters() {
-        ArchRule rule = noClasses()
-            .that().resideInAPackage("..usecase..")
-            .should().dependOnClassesThat()
-            .resideInAPackage("..interface_adapter..");
-        
-        rule.check(classes);
+
+    @Nested
+    @DisplayName("Structural Rules")
+    class StructuralRules {
+
+        @Test
+        @DisplayName("Gateways in use case layer should be interfaces")
+        void gatewaysShouldBeInterfaces() {
+            ArchRule rule = classes()
+                    .that().resideInAPackage("..usecase.gateway..")
+                    .should().beInterfaces()
+                    .because("Gateways define contracts, implementations live in outer layers");
+
+            rule.check(classes);
+        }
+
+        @Test
+        @DisplayName("Use Case interfaces should be suffixed with UseCase")
+        void useCaseInterfacesShouldBeSuffixed() {
+            ArchRule rule = classes()
+                    .that().resideInAPackage("..usecase..")
+                    .and().areInterfaces()
+                    .and().haveSimpleNameNotEndingWith("Gateway")
+                    .should().haveSimpleNameEndingWith("UseCase");
+
+            rule.check(classes);
+        }
+
+        @Test
+        @DisplayName("No cycles between packages")
+        void noCyclesBetweenPackages() {
+            ArchRule rule = slices()
+                    .matching(BASE_PACKAGE + ".(*)..")
+                    .should().beFreeOfCycles();
+
+            rule.check(classes);
+        }
+
+        @Test
+        @DisplayName("Interactors should not have Spring annotations")
+        void interactorsShouldNotHaveSpringAnnotations() {
+            ArchRule rule = noClasses()
+                    .that().resideInAPackage("..usecase..")
+                    .and().haveSimpleNameEndingWith("Interactor")
+                    .should().beAnnotatedWith(org.springframework.stereotype.Service.class)
+                    .orShould().beAnnotatedWith(org.springframework.stereotype.Component.class)
+                    .because("Interactors are pure Java classes, wired manually in BeanConfiguration");
+
+            rule.check(classes);
+        }
     }
-    
-    @Test
-    void useCasesShouldNotDependOnFrameworks() {
-        ArchRule rule = noClasses()
-            .that().resideInAPackage("..usecase..")
-            .should().dependOnClassesThat()
-            .resideInAnyPackage("..framework..", "org.springframework..")
-            .because("Use cases should be framework-independent");
-        
-        rule.check(classes);
-    }
-    
-    @Test
-    void gatewaysShouldBeInterfaces() {
-        ArchRule rule = classes()
-            .that().resideInAPackage("..usecase.gateway..")
-            .should().beInterfaces()
-            .because("Gateways define contracts, implementations live in outer layers");
-        
-        rule.check(classes);
+
+    @Nested
+    @DisplayName("Data Transfer Rules")
+    class DataTransferRules {
+
+        @Test
+        @DisplayName("Input/Output Data should be records or simple POJOs")
+        void inputOutputDataShouldBeSimple() {
+            ArchRule rule = classes()
+                    .that().resideInAPackage("..usecase..")
+                    .and().haveSimpleNameEndingWith("Data")
+                    .should().beRecords()
+                    .orShould().haveOnlyFinalFields()
+                    .because("Input/Output Data should be immutable value objects");
+
+            rule.check(classes);
+        }
+
+        @Test
+        @DisplayName("Request DTOs should be in dto.request package")
+        void requestDtosShouldBeInCorrectPackage() {
+            ArchRule rule = classes()
+                    .that().haveSimpleNameEndingWith("Request")
+                    .and().resideInAPackage("..presentation..")
+                    .should().resideInAPackage("..dto.request..");
+
+            rule.check(classes);
+        }
+
+        @Test
+        @DisplayName("Response DTOs should be in dto.response package")
+        void responseDtosShouldBeInCorrectPackage() {
+            ArchRule rule = classes()
+                    .that().haveSimpleNameEndingWith("Response")
+                    .and().resideInAPackage("..presentation..")
+                    .should().resideInAPackage("..dto.response..");
+
+            rule.check(classes);
+        }
+
+        @Test
+        @DisplayName("JPA entities should be in persistence.entity package")
+        void jpaEntitiesShouldBeInCorrectPackage() {
+            ArchRule rule = classes()
+                    .that().haveSimpleNameEndingWith("JpaEntity")
+                    .should().resideInAPackage("..persistence.entity..");
+
+            rule.check(classes);
+        }
     }
 }
 ```
@@ -1914,20 +2246,23 @@ src/test/java/app/quantun/architecture/
 │   │   └── SearchProductsInteractorTest.java
 │   └── order/
 │       └── CreateOrderInteractorTest.java
-├── interface_adapter/               # Interface adapters
-│   ├── controller/
-│   │   ├── CategoryControllerTest.java
-│   │   ├── ProductControllerTest.java
-│   │   └── OrderControllerTest.java
-│   └── gateway/
-│       ├── CategoryGatewayImplTest.java
-│       ├── ProductGatewayImplTest.java
-│       └── OrderGatewayImplTest.java
-├── framework/                       # Outermost - infrastructure tests
-│   └── persistence/
-│       └── mapper/
-│           ├── ProductDataMapperTest.java
-│           └── OrderDataMapperTest.java
+├── presentation/                    # Presentation layer tests
+│   ├── rest/
+│   │   └── controller/
+│   │       ├── CategoryControllerTest.java
+│   │       ├── ProductControllerTest.java
+│   │       └── OrderControllerTest.java
+│   └── presenter/
+│       ├── CategoryPresenterTest.java
+│       └── OrderPresenterTest.java
+├── persistence/                     # Persistence layer tests
+│   ├── gateway/
+│   │   ├── CategoryGatewayImplTest.java
+│   │   ├── ProductGatewayImplTest.java
+│   │   └── OrderGatewayImplTest.java
+│   └── mapper/
+│       ├── ProductPersistenceMapperTest.java
+│       └── OrderPersistenceMapperTest.java
 ├── integration/                     # Full stack tests
 │   ├── CreateOrderFullStackTest.java
 │   └── ProductSearchFullStackTest.java
@@ -1937,19 +2272,23 @@ src/test/java/app/quantun/architecture/
 
 ### Testing Benefits in Clean Architecture
 
-Clean Architecture provides exceptional testability through its dependency rule. The innermost entities can be tested with pure unit tests that run in milliseconds. Use cases can be tested by mocking only the gateway interfaces, keeping tests fast and focused. Interface adapters and frameworks are tested with integration tests that verify infrastructure concerns. This layered testing approach means you catch bugs early in fast tests, reserve expensive integration tests for infrastructure validation, and maintain confidence in your core business logic regardless of framework changes.
+Clean Architecture provides exceptional testability through its dependency rule. The innermost entities can be tested
+with pure unit tests that run in milliseconds. Use cases can be tested by mocking only the gateway interfaces, keeping
+tests fast and focused. Presentation and persistence layers are tested with integration tests that verify infrastructure
+concerns. This layered testing approach means you catch bugs early in fast tests, reserve expensive integration tests
+for infrastructure validation, and maintain confidence in your core business logic regardless of framework changes.
 
 ---
 
 ## Key Differences from Hexagonal
 
-| Aspect | Clean Architecture | Hexagonal |
-|--------|-------------------|-----------|
-| Terminology | Entities, Use Cases, Interface Adapters | Domain, Application, Adapters |
-| Focus | Dependency rule, circles | Ports and Adapters metaphor |
-| Presenters | Explicit presenter pattern | Often merged with controller |
-| Data Structures | Input/Output Data for boundaries | Command/Query objects |
-| Configuration | Often manual bean wiring | Spring auto-wiring more common |
+| Aspect          | Clean Architecture                      | Hexagonal                      |
+|-----------------|-----------------------------------------|--------------------------------|
+| Terminology     | Entities, Use Cases, Interface Adapters | Domain, Application, Adapters  |
+| Focus           | Dependency rule, circles                | Ports and Adapters metaphor    |
+| Presenters      | Explicit presenter pattern              | Often merged with controller   |
+| Data Structures | Input/Output Data for boundaries        | Command/Query objects          |
+| Configuration   | Often manual bean wiring                | Spring auto-wiring more common |
 
 ---
 
