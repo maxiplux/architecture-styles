@@ -1,0 +1,4 @@
+## 2026-01-17 - Hardcoded Database Password in Configuration
+**Vulnerability:** A hardcoded database password (`secret`) was found in `src/main/resources/application.properties`. This file is included in the build artifact, exposing the password if the code is open-sourced or the artifact is shared.
+**Learning:** Default configurations in properties files often get committed with secrets. Even if it's a "dev" password, it encourages bad practices and can be accidentally promoted to production or used as a real password.
+**Prevention:** Use environment variable references (e.g., `${DB_PASSWORD}`) in configuration files. Provide defaults only if strictly necessary for local dev ease-of-use, and clearly document them. A better approach is to rely on container orchestration (Docker Compose, K8s) or Spring Boot's automatic env var mapping (`SPRING_DATASOURCE_PASSWORD`).
