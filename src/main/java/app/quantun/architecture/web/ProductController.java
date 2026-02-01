@@ -4,21 +4,21 @@ import app.quantun.architecture.dto.ProductDTO;
 import app.quantun.architecture.dto.ProductFilter;
 import app.quantun.architecture.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Products", description = "Product catalog management endpoints for searching, filtering, and browsing products with advanced query capabilities")
@@ -103,7 +103,7 @@ public class ProductController {
                                               "timestamp": "2025-11-24T16:36:00.000+00:00",
                                               "status": 400,
                                               "error": "Bad Request",
-                                              "message": "Invalid price range: minPrice cannot be greater than maxPrice",
+                                              "message": "Validation failed: Name must not exceed 100 characters",
                                               "path": "/api/v1/products"
                                             }
                                             """
@@ -131,51 +131,9 @@ public class ProductController {
     })
     @GetMapping
     public ResponseEntity<Page<ProductDTO>> getProducts(
-            @Parameter(
-                    description = "Filter products by category ID. Only products belonging to this category will be returned.",
-                    example = "1"
-            )
-            @RequestParam(required = false) Long categoryId,
-            
-            @Parameter(
-                    description = "Filter products by name (case-insensitive partial match). Searches for products containing this text in their name.",
-                    example = "wireless"
-            )
-            @RequestParam(required = false) String name,
-            
-            @Parameter(
-                    description = "Minimum price filter. Only products with price greater than or equal to this value will be returned.",
-                    example = "10.00"
-            )
-            @RequestParam(required = false) java.math.BigDecimal minPrice,
-            
-            @Parameter(
-                    description = "Maximum price filter. Only products with price less than or equal to this value will be returned.",
-                    example = "500.00"
-            )
-            @RequestParam(required = false) java.math.BigDecimal maxPrice,
-            
-            @Parameter(
-                    description = "Filter by stock availability. Set to true to show only in-stock products, false for out-of-stock products.",
-                    example = "true"
-            )
-            @RequestParam(required = false) Boolean inStock,
-            
-            @Parameter(
-                    description = "Filter by active status. Set to true to show only active products (default), false to show inactive products.",
-                    example = "true"
-            )
-            @RequestParam(required = false, defaultValue = "true") Boolean active,
-            
+            @ParameterObject @ModelAttribute @Valid ProductFilter filter,
             @ParameterObject Pageable pageable
     ) {
-        ProductFilter filter = new ProductFilter();
-        filter.setCategoryId(categoryId);
-        filter.setName(name);
-        filter.setMinPrice(minPrice);
-        filter.setMaxPrice(maxPrice);
-        filter.setInStock(inStock);
-        filter.setActive(active);
         return ResponseEntity.ok(productService.search(filter, pageable));
     }
 }
