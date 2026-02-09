@@ -2,15 +2,15 @@
 ## Shopping Cart REST API
 
 **Project:** `app.quantun.architecture`  
-**Version:** 0.0.1-SNAPSHOT  
-**Date:** 2024-11-24  
+**Version:** 1.0.0
+**Date:** 2025-11-24
 **Status:** Draft
 
 ---
 
 ## 1. Executive Summary
 
-This document outlines the requirements for a Shopping Cart REST API built using Spring Boot. The API provides core e-commerce functionality including product catalog management, category organization, and order processing. This project serves as an architectural exploration example, focusing on clean design patterns and best practices without authentication/authorization complexity.
+This document outlines the requirements for a Shopping Cart REST API built using Spring Boot. The project explicitly follows **Clean Architecture** principles to demonstrate how to decouple business rules from frameworks, databases, and external interfaces.
 
 ---
 
@@ -18,7 +18,7 @@ This document outlines the requirements for a Shopping Cart REST API built using
 
 ### 2.1 Purpose
 
-The Shopping Cart API serves as a backend foundation for an e-commerce platform, enabling client applications to interact with the product catalog and manage customer orders through a standardized REST interface.
+The Shopping Cart API serves as a backend foundation for an e-commerce platform. It is designed to be highly testable, maintainable, and independent of external frameworks.
 
 ### 2.2 Scope
 
@@ -41,40 +41,22 @@ The initial release focuses on three core use cases:
 
 | Component | Technology |
 |-----------|------------|
+| Architecture | Clean Architecture (Robert C. Martin) |
 | Framework | Spring Boot 3.5.8 |
 | Language | Java 21 |
 | Database | PostgreSQL (latest via Docker) |
-| ORM | Spring Data JPA with JpaSpecificationExecutor |
-| Dynamic Queries | JPA Criteria API via Specification pattern |
+| ORM | Spring Data JPA |
+| Mapping | MapStruct 1.5.5 |
 | API Documentation | SpringDoc OpenAPI (Swagger UI) |
 | Validation | Spring Boot Starter Validation |
 | Build Tool | Gradle |
-| Utilities | Lombok |
 | Containerization | Docker Compose |
 
-### 3.1 Key Dependencies
+### 3.1 MapStruct Integration
 
-```groovy
-// Data & Persistence
-implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+To maintain strict separation between layers (e.g., Domain Entities vs. Persistence Entities vs. DTOs), MapStruct is used for efficient, type-safe object mapping.
 
-// API Documentation
-implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui'
-
-// Validation
-implementation 'org.springframework.boot:spring-boot-starter-validation'
-```
-
-### 3.2 JpaSpecificationExecutor
-
-Repositories will extend `JpaSpecificationExecutor<T>` to support dynamic query building using the Specification pattern. This enables:
-
-- Complex filtering without multiple repository methods
-- Runtime query composition
-- Type-safe criteria building
-- Reusable filter predicates
-
-### 3.3 Docker Compose Configuration
+### 3.2 Docker Compose Configuration
 
 ```yaml
 services:
@@ -98,23 +80,21 @@ services:
 |-----------|-------------|
 | **Use Case ID** | UC-001 |
 | **Name** | Get All Categories |
-| **Actor** | Client Application |
-| **Preconditions** | System is operational; database contains category data |
+| **Input Port** | `GetAllCategoriesUseCase` |
+| **Interactor** | `GetAllCategoriesInteractor` |
+| **Output Port** | `CategoryGateway` |
 | **Description** | Retrieve a complete list of all available product categories |
-| **Postconditions** | A list of categories is returned to the client |
 | **Priority** | High |
 
 #### Basic Flow
 
-1. Client sends GET request to `/api/v1/categories`
-2. System retrieves all categories from the database
-3. System returns 200 OK with JSON array of category objects
-
-#### API Specification
-
-| Method | Endpoint | Parameters | Responses |
-|--------|----------|------------|-----------|
-| GET | `/api/v1/categories` | None | 200: Category array, 500: Server error |
+1. **Controller** receives GET request.
+2. Controller calls `GetAllCategoriesUseCase.execute()`.
+3. **Interactor** calls `CategoryGateway.findAllActive()`.
+4. **Gateway Implementation** (Interface Adapter) retrieves data from DB and maps to Domain Entities.
+5. Interactor returns list of `CategoryOutputData`.
+6. **Presenter** formats output into `CategoryResponseModel`.
+7. Controller returns 200 OK with JSON.
 
 #### Response Schema
 
@@ -138,92 +118,27 @@ services:
 |-----------|-------------|
 | **Use Case ID** | UC-002 |
 | **Name** | Get Products with Dynamic Filtering |
-| **Actor** | Client Application |
-| **Preconditions** | System is operational; products exist in the database |
-| **Description** | Retrieve a list of products with dynamic filtering using JpaSpecificationExecutor |
-| **Postconditions** | A filtered or complete list of products is returned |
+| **Input Port** | `SearchProductsUseCase` |
+| **Interactor** | `SearchProductsInteractor` |
+| **Output Port** | `ProductGateway` |
+| **Description** | Retrieve a list of products with dynamic filtering |
 | **Priority** | High |
 
 #### Basic Flow
 
-1. Client sends GET request to `/api/v1/products` with optional filter parameters
-2. System builds dynamic query using JPA Specifications
-3. System retrieves products from database applying all filters
-4. System returns 200 OK with paginated JSON array of product objects
-
-#### Alternative Flows
-
-- **Invalid Category:** If `categoryId` does not exist, return 404 Not Found
-- **Empty Results:** If no products match criteria, return 200 with empty array
+1. **Controller** maps request parameters to `ProductSearchInputData`.
+2. Controller calls `SearchProductsUseCase.execute(input)`.
+3. **Interactor** calls `ProductGateway.findAll(input)`.
+4. **Gateway Implementation** builds dynamic query (using JPA Specifications) and returns `PagedResult<Product>`.
+5. Interactor maps Domain Entities to `ProductOutputData`.
+6. **Presenter** maps to `PageResponseModel`.
+7. Controller returns 200 OK.
 
 #### API Specification
 
 | Method | Endpoint | Parameters | Responses |
 |--------|----------|------------|-----------|
-| GET | `/api/v1/products` | `categoryId` (optional): Long | 200: Product array |
-| | | `name` (optional): String (partial match) | 404: Category not found |
-| | | `minPrice` (optional): BigDecimal | 500: Server error |
-| | | `maxPrice` (optional): BigDecimal | |
-| | | `inStock` (optional): Boolean | |
-| | | `active` (optional): Boolean, default true | |
-| | | `page` (optional): Integer, default 0 | |
-| | | `size` (optional): Integer, default 20 | |
-| | | `sort` (optional): String, e.g., "price,desc" | |
-
-#### Dynamic Query Implementation
-
-Using `JpaSpecificationExecutor`, filters are combined at runtime:
-
-```java
-public interface ProductRepository extends 
-    JpaRepository<Product, Long>, 
-    JpaSpecificationExecutor<Product> {
-}
-
-// Specification example
-public class ProductSpecifications {
-    
-    public static Specification<Product> hasCategory(Long categoryId) {
-        return (root, query, cb) -> 
-            categoryId == null ? null : cb.equal(root.get("categoryId"), categoryId);
-    }
-    
-    public static Specification<Product> nameLike(String name) {
-        return (root, query, cb) -> 
-            name == null ? null : cb.like(cb.lower(root.get("name")), "%" + name.toLowerCase() + "%");
-    }
-    
-    public static Specification<Product> priceBetween(BigDecimal min, BigDecimal max) {
-        return (root, query, cb) -> {
-            if (min == null && max == null) return null;
-            if (min == null) return cb.lessThanOrEqualTo(root.get("price"), max);
-            if (max == null) return cb.greaterThanOrEqualTo(root.get("price"), min);
-            return cb.between(root.get("price"), min, max);
-        };
-    }
-    
-    public static Specification<Product> inStock(Boolean inStock) {
-        return (root, query, cb) -> 
-            inStock == null || !inStock ? null : cb.greaterThan(root.get("stock"), 0);
-    }
-}
-```
-
-#### Request Examples
-
-```bash
-# Get all active products
-GET /api/v1/products
-
-# Filter by category
-GET /api/v1/products?categoryId=1
-
-# Complex filter: Electronics under $200, in stock, sorted by price
-GET /api/v1/products?categoryId=1&maxPrice=200&inStock=true&sort=price,asc
-
-# Search by name with pagination
-GET /api/v1/products?name=wireless&page=0&size=10
-```
+| GET | `/api/v1/products` | `categoryId`, `name`, `minPrice`, `maxPrice`, `inStock`, `page`, `size` | 200: Product array |
 
 #### Response Schema
 
@@ -245,9 +160,7 @@ GET /api/v1/products?name=wireless&page=0&size=10
   "totalElements": 150,
   "totalPages": 8,
   "number": 0,
-  "size": 20,
-  "first": true,
-  "last": false
+  "size": 20
 }
 ```
 
@@ -259,55 +172,21 @@ GET /api/v1/products?name=wireless&page=0&size=10
 |-----------|-------------|
 | **Use Case ID** | UC-003 |
 | **Name** | Create Order |
-| **Actor** | Client Application |
-| **Preconditions** | Cart contains valid products with sufficient stock |
+| **Input Port** | `CreateOrderUseCase` |
+| **Interactor** | `CreateOrderInteractor` |
+| **Output Port** | `OrderGateway`, `ProductGateway` |
 | **Description** | Submit an order containing selected products to complete a purchase |
-| **Postconditions** | Order is created, inventory is updated, confirmation returned |
 | **Priority** | Critical |
 
 #### Basic Flow
 
-1. Client sends POST request to `/api/v1/orders` with order payload
-2. System validates all product IDs and quantities
-3. System verifies stock availability for each item
-4. System calculates order total
-5. System creates order record and order items in database (transactional)
-6. System decrements product stock quantities
-7. System returns 201 Created with order confirmation
-
-#### Alternative Flows
-
-- **Insufficient Stock:** Return 409 Conflict with details of unavailable items
-- **Invalid Product:** Return 400 Bad Request if product ID does not exist
-- **Validation Error:** Return 400 Bad Request with validation details
-
-#### API Specification
-
-| Method | Endpoint | Request Body | Responses |
-|--------|----------|--------------|-----------|
-| POST | `/api/v1/orders` | Order JSON | 201: Order created |
-| | | | 400: Invalid request |
-| | | | 409: Stock conflict |
-| | | | 500: Server error |
-
-#### Request Schema
-
-```json
-{
-  "customerId": 5001,
-  "items": [
-    { "productId": 101, "quantity": 2 },
-    { "productId": 205, "quantity": 1 }
-  ],
-  "shippingAddress": {
-    "street": "123 Main St",
-    "city": "Springfield",
-    "state": "IL",
-    "zipCode": "62701",
-    "country": "USA"
-  }
-}
-```
+1. **Controller** maps request body to `CreateOrderInputData`.
+2. Controller calls `CreateOrderUseCase.execute(input)`.
+3. **Interactor** validates input and retrieves products via `ProductGateway`.
+4. **Interactor** executes business logic (Entity method `Product.canFulfillQuantity()`).
+5. **Interactor** creates `Order` domain entity.
+6. **Interactor** persists order via `OrderGateway` and updates stock.
+7. **Presenter** returns `OrderResponseModel`.
 
 #### Response Schema
 
@@ -333,17 +212,17 @@ GET /api/v1/products?name=wireless&page=0&size=10
 
 ---
 
-## 5. Data Model
+## 5. Data Model (Domain Entities)
 
-### 5.1 Entity Relationship Diagram
+In Clean Architecture, these are the **Innermost Circle**. They have **NO** dependencies on frameworks or annotations.
 
 ```
 ┌──────────────┐       ┌──────────────┐
 │   Category   │       │   Product    │
 ├──────────────┤       ├──────────────┤
-│ id (PK)      │───┐   │ id (PK)      │
+│ id           │───┐   │ id           │
 │ name         │   │   │ name         │
-│ description  │   └──►│ categoryId   │
+│ description  │   └──►│ category     │
 │ active       │       │ price        │
 │ createdAt    │       │ stock        │
 └──────────────┘       │ description  │
@@ -355,50 +234,15 @@ GET /api/v1/products?name=wireless&page=0&size=10
 ┌──────────────┐       ┌──────────────┐
 │    Order     │       │  OrderItem   │
 ├──────────────┤       ├──────────────┤
-│ id (PK)      │───┐   │ id (PK)      │
-│ customerId   │   │   │ orderId (FK) │◄─┘
-│ status       │   └──►│ productId    │
-│ subtotal     │       │ quantity     │
-│ tax          │       │ unitPrice    │
-│ total        │       │ subtotal     │
-│ createdAt    │       └──────────────┘
-│ shippingAddr │
+│ id           │───┐   │ id           │
+│ customerId   │   │   │ productId    │
+│ status       │   └──►│ productName  │
+│ subtotal     │       │ tax          │
+│ tax          │       │ quantity     │
+│ total        │       │ unitPrice    │
+│ createdAt    │       │ subtotal     │
+│ shippingAddr │       └──────────────┘
 └──────────────┘
-```
-
-### 5.2 Entity Definitions
-
-| Entity | Key Fields | Description |
-|--------|------------|-------------|
-| Category | id, name, description, active | Product categories for organizing the catalog |
-| Product | id, name, price, categoryId, stock | Items available for purchase |
-| Order | id, customerId, status, total, createdAt | Customer purchase transactions |
-| OrderItem | id, orderId, productId, quantity, unitPrice | Line items within an order |
-
-### 5.3 Order Status Enum
-
-| Status | Description |
-|--------|-------------|
-| PENDING | Order created, awaiting processing |
-| CONFIRMED | Order confirmed and being prepared |
-| SHIPPED | Order has been shipped |
-| DELIVERED | Order delivered to customer |
-| CANCELLED | Order was cancelled |
-
-### 5.4 Product Filter DTO
-
-For dynamic queries using JpaSpecificationExecutor:
-
-```java
-@Data
-public class ProductFilter {
-    private Long categoryId;
-    private String name;
-    private BigDecimal minPrice;
-    private BigDecimal maxPrice;
-    private Boolean inStock;
-    private Boolean active = true;
-}
 ```
 
 ---
@@ -414,19 +258,11 @@ public class ProductFilter {
 ### 6.2 Reliability
 
 - Transactional integrity for order creation (all-or-nothing)
-- Proper error handling with meaningful error messages
 - Graceful degradation under high load
 
 ### 6.3 Maintainability
 
-- Clean architecture with separation of concerns
-- Comprehensive logging using SLF4J
-- API versioning in URL path (`/api/v1/`)
-
-### 6.4 Observability
-
-- Spring Boot Actuator endpoints enabled for health checks
-- Structured logging for debugging
+- **Strict dependency rules** ensure that changing the DB or Framework doesn't affect business logic.
 
 ---
 
@@ -446,110 +282,18 @@ public class ProductFilter {
 
 ---
 
-## 8. Acceptance Criteria
+## 8. API Documentation (OpenAPI)
 
-| Use Case | Criteria | Status |
-|----------|----------|--------|
-| UC-001 | Returns all active categories with correct schema | Pending |
-| UC-001 | Response time < 100ms for up to 100 categories | Pending |
-| UC-002 | Correctly filters products by categoryId | Pending |
-| UC-002 | Correctly filters products by name (partial match) | Pending |
-| UC-002 | Correctly filters products by price range | Pending |
-| UC-002 | Correctly filters products by stock availability | Pending |
-| UC-002 | Combines multiple filters using AND logic | Pending |
-| UC-002 | Pagination works with page, size, and sort parameters | Pending |
-| UC-002 | Returns 404 for non-existent category | Pending |
-| UC-003 | Creates order with valid request body | Pending |
-| UC-003 | Stock is decremented after successful order | Pending |
-| UC-003 | Returns 409 when stock is insufficient | Pending |
-| UC-003 | Rollback on partial failure (transactional) | Pending |
-| OpenAPI | Swagger UI accessible at /swagger-ui.html | Pending |
-| OpenAPI | All endpoints documented with descriptions | Pending |
-
----
-
-## 9. API Documentation (OpenAPI)
-
-### 9.1 Swagger UI Access
+### 8.1 Swagger UI Access
 
 | Resource | URL |
 |----------|-----|
 | Swagger UI | `http://localhost:8080/swagger-ui.html` |
 | OpenAPI JSON | `http://localhost:8080/v3/api-docs` |
-| OpenAPI YAML | `http://localhost:8080/v3/api-docs.yaml` |
-
-### 9.2 OpenAPI Configuration
-
-```java
-@Configuration
-public class OpenApiConfig {
-    
-    @Bean
-    public OpenAPI customOpenAPI() {
-        return new OpenAPI()
-            .info(new Info()
-                .title("Shopping Cart API")
-                .version("1.0.0")
-                .description("REST API for shopping cart operations"));
-    }
-}
-```
-
-### 9.3 Controller Annotations
-
-All endpoints should be documented using SpringDoc annotations:
-
-```java
-@Tag(name = "Products", description = "Product catalog operations")
-@RestController
-@RequestMapping("/api/v1/products")
-public class ProductController {
-
-    @Operation(summary = "Get products with dynamic filtering")
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Products retrieved successfully"),
-        @ApiResponse(responseCode = "404", description = "Category not found")
-    })
-    @GetMapping
-    public Page<ProductDTO> getProducts(
-        @Parameter(description = "Filter by category ID") 
-        @RequestParam(required = false) Long categoryId,
-        @Parameter(description = "Filter by product name (partial match)") 
-        @RequestParam(required = false) String name,
-        @ParameterObject Pageable pageable) {
-        // ...
-    }
-}
-```
 
 ---
 
-## 10. API Summary
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/categories` | List all categories |
-| GET | `/api/v1/products` | List products with dynamic filtering |
-| POST | `/api/v1/orders` | Create a new order |
-| - | `/swagger-ui.html` | Interactive API documentation |
-| - | `/v3/api-docs` | OpenAPI specification (JSON) |
-
----
-
-## 11. HTTP Status Codes
-
-| Code | Status | Usage |
-|------|--------|-------|
-| 200 | OK | Successful GET requests |
-| 201 | Created | Successful POST creating new resource |
-| 400 | Bad Request | Invalid request body or parameters |
-| 404 | Not Found | Resource does not exist |
-| 409 | Conflict | Business rule violation (e.g., insufficient stock) |
-| 500 | Internal Error | Unexpected server error |
-
----
-
-## 12. Assumptions & Constraints
+## 9. Assumptions & Constraints
 
 ### Assumptions
 
@@ -561,7 +305,6 @@ public class ProductController {
 
 - No authentication/authorization layer
 - Single-region deployment
-- No caching layer in initial implementation
 
 ---
 
@@ -569,4 +312,4 @@ public class ProductController {
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
-| 1.0 | 2024-11-24 | API Dev Team | Initial draft |
+| 1.0.0 | 2025-11-24 | API Dev Team | Updated to Clean Architecture spec |

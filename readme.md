@@ -22,7 +22,7 @@
 
 ## Overview
 
-The Shopping Cart REST API is a comprehensive backend solution for an e-commerce platform built with Spring Boot. This project demonstrates clean architecture principles, modern Java patterns, and best practices for building scalable REST APIs.
+The Shopping Cart REST API is a comprehensive backend solution for an e-commerce platform built with Spring Boot. This project demonstrates **Clean Architecture** principles (as defined by Robert C. Martin), modern Java patterns, and best practices for building scalable REST APIs.
 
 ### Key Features
 
@@ -50,6 +50,7 @@ The Shopping Cart REST API is a comprehensive backend solution for an e-commerce
 | **Language** | Java | 21 |
 | **Database** | PostgreSQL | latest |
 | **ORM** | Spring Data JPA + Hibernate | - |
+| **Mapping** | MapStruct | 1.5.5 |
 | **Build Tool** | Gradle | - |
 | **API Documentation** | SpringDoc OpenAPI | 2.8.14 |
 | **Validation** | Jakarta Validation | - |
@@ -64,6 +65,10 @@ implementation 'org.springframework.boot:spring-boot-starter-web'
 implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 implementation 'org.springframework.boot:spring-boot-starter-validation'
 implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+// Mapping
+implementation 'org.mapstruct:mapstruct:1.5.5.Final'
+annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
 
 // Database
 runtimeOnly 'org.postgresql:postgresql'
@@ -81,134 +86,76 @@ developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
 
 ## Technical Decisions (TD)
 
-### TD-001: Layered Architecture Pattern
+### TD-001: Clean Architecture
 
-**Decision:** Implement classic layered architecture with clear separation of concerns.
+**Decision:** Implement strict Clean Architecture with concentric circles and dependency rules.
 
 **Rationale:**
-- **Controller Layer** - HTTP request handling and response mapping
-- **Service Layer** - Business logic and transaction management
-- **Repository Layer** - Data access abstraction
-- **Domain Layer** - Entity definitions and business rules
+- **Entities Layer** - Innermost layer, enterprise business rules, no framework dependencies.
+- **Use Cases Layer** - Application business rules, orchestrates data flow.
+- **Interface Adapters** - Controllers, Presenters, Gateways (convert data for external agencies).
+- **Frameworks & Drivers** - Outermost layer (Database, Web Framework, Config).
 
 **Benefits:**
-- Clear separation of concerns
-- Easy to test and maintain
-- Industry-standard pattern widely understood
-- Facilitates parallel development
+- **Dependency Rule:** Source code dependencies only point inward.
+- **Independence:** The business logic is independent of UI, Database, and Frameworks.
+- **Testability:** Business rules can be tested without external elements.
 
-### TD-002: JPA Specification Pattern for Dynamic Queries
+### TD-002: MapStruct for Data Transformation
 
-**Decision:** Use `JpaSpecificationExecutor` with Specification pattern for dynamic product filtering.
-
-**Rationale:**
-- Avoids repository method explosion
-- Type-safe query building with Criteria API
-- Runtime query composition
-- Reusable and combinable filter predicates
-
-**Implementation:**
-```java
-// ProductRepository extends JpaSpecificationExecutor
-Specification<Product> spec = Specification.allOf(
-    ProductSpecifications.hasCategory(categoryId),
-    ProductSpecifications.nameLike(name),
-    ProductSpecifications.priceBetween(minPrice, maxPrice),
-    ProductSpecifications.inStock(inStock)
-);
-Page<Product> results = productRepository.findAll(spec, pageable);
-```
-
-**Benefits:**
-- No query method proliferation
-- Flexible filter combinations
-- Maintainable and extensible
-- Supports complex AND/OR logic
-
-### TD-003: DTO Pattern with Java Records
-
-**Decision:** Use immutable DTOs (Data Transfer Objects) implemented as Java records for API contracts.
+**Decision:** Use MapStruct for mapping between layers (Response Models ↔ Output Data ↔ Domain Entities ↔ Data Entities).
 
 **Rationale:**
-- Clear API contract separation from domain entities
-- Immutability for thread safety
-- Concise syntax with records
-- Prevents accidental entity exposure
+- Maintains the strict separation of layers by converting objects at boundaries.
+- compile-time safety and high performance.
+- Eliminates boilerplate mapping code.
 
-**Examples:**
-```java
-public record ProductDTO(Long id, String name, BigDecimal price, ...) {}
-public record OrderResponse(Long orderId, String status, ...) {}
-```
+### TD-003: JPA Specification Pattern for Dynamic Queries
 
-**Benefits:**
-- API contract stability
-- Reduced boilerplate code
-- Prevention of lazy loading issues
-- Security through data hiding
-
-### TD-004: Flattened Shipping Address
-
-**Decision:** Store shipping address as flat columns in `orders` table instead of separate entity.
+**Decision:** Use `JpaSpecificationExecutor` in the Gateway implementation (Infrastructure layer) for dynamic filtering.
 
 **Rationale:**
-- Simplifies data model for MVP scope
-- Reduces join complexity
-- Shipping addresses are order-specific (not reusable in this scope)
-- Easier to query and report
+- Allows the Use Case layer to request filtered data via abstract criteria.
+- Keeps SQL/JPA logic contained in the outermost layer.
+- Type-safe query building.
 
-**Trade-off:** Less normalized, but acceptable for current requirements.
+### TD-004: Explicit Use Case Interfaces
 
-### TD-005: BigDecimal for Monetary Values
-
-**Decision:** Use `BigDecimal` for all monetary values (price, subtotal, tax, total).
+**Decision:** Each action (e.g., `CreateOrder`, `GetProducts`) has its own Use Case interface and implementation (Interactor).
 
 **Rationale:**
-- Precise decimal arithmetic (no floating-point errors)
-- Industry standard for financial calculations
-- Supports arbitrary precision
+- Adheres to Single Responsibility Principle (SRP).
+- clearly defines the Input/Output ports of the application.
+- avoids "God classes" (like massive Service classes).
 
-**Configuration:**
-```java
-@Column(nullable = false, precision = 12, scale = 2)
-private BigDecimal price;
-```
+### TD-005: Presenter Pattern
 
-### TD-006: Optimistic Locking Strategy
-
-**Decision:** Use transaction boundaries without explicit pessimistic locks for order creation.
+**Decision:** Use Presenters to format Output Data from Use Cases into Response Models for the View/Controller.
 
 **Rationale:**
-- `@Transactional` ensures ACID properties
-- Stock decrement after order creation within same transaction
-- Rollback on any exception
-- Acceptable for initial implementation
+- Decouples the Use Case from the format of the HTTP response.
+- Allows for different presentation logic for different delivery mechanisms (Web, CLI, etc.).
 
-**Future Enhancement:** Consider pessimistic locking or optimistic locking with `@Version` for high-concurrency scenarios.
+### TD-006: Domain Entities vs Persistence Entities
+
+**Decision:** Distinct classes for Domain Entities (Business Rules) and Persistence Entities (JPA).
+
+**Rationale:**
+- **Domain Entities:** Rich models with behavior, no annotations.
+- **Persistence Entities:** Anemic models with `@Entity`, `@Table` annotations, optimized for DB storage.
+- Prevents database schema changes from leaking into business logic.
 
 ### TD-007: Global Exception Handling
 
 **Decision:** Centralized exception handling using `@RestControllerAdvice`.
 
 **Rationale:**
-- Consistent error response format across all endpoints
-- Separation of error handling from business logic
-- Single source of truth for error responses
-
-**Custom Exceptions:**
-- `NotFoundException` → 404
-- `BadRequestException` → 400
-- `ConflictException` → 409 (business rule violations)
+- Consistent error response format.
+- Maps domain exceptions (e.g., `EntityNotFoundException`, `BusinessRuleException`) to HTTP status codes.
 
 ### TD-008: Enum for Order Status
 
-**Decision:** Use Java enum for order status instead of string constants.
-
-**Rationale:**
-- Type safety at compile time
-- Prevents invalid status values
-- Self-documenting code
-- Easy to extend
+**Decision:** Use Java enum for order status.
 
 **Status Flow:**
 ```
@@ -218,158 +165,113 @@ PENDING → CONFIRMED → SHIPPED → DELIVERED
 
 ### TD-009: Soft Delete via Active Flag
 
-**Decision:** Use `active` boolean flag for soft deletes instead of hard deletes.
-
-**Rationale:**
-- Preserve data for audit and reporting
-- Enable product/category reactivation
-- Simplify business logic (no cascading deletes)
+**Decision:** Use `active` boolean flag for soft deletes.
 
 ### TD-010: API Versioning in URL Path
 
-**Decision:** Include version prefix `/api/v1/` in all endpoint URLs.
-
-**Rationale:**
-- Clear API versioning strategy
-- Enables backward compatibility
-- Easy to introduce breaking changes in v2
-- Industry best practice
+**Decision:** Include version prefix `/api/v1/`.
 
 ### TD-011: Pagination by Default
 
-**Decision:** All list endpoints return paginated results using Spring Data `Pageable`.
+**Decision:** List endpoints return paginated results.
 
-**Rationale:**
-- Prevents performance issues with large datasets
-- Supports sorting and filtering
-- Standard Spring Data integration
+### TD-012: Comprehensive OpenAPI Documentation
 
-### TD-012: Fixed Tax Rate
-
-**Decision:** Use hardcoded 8% tax rate in `OrderService`.
-
-**Rationale:**
-- Simplifies MVP implementation
-- Tax calculation logic is centralized
-- Easy to refactor to configurable/regional rates later
-
-```java
-private static final BigDecimal TAX_RATE = new BigDecimal("0.08");
-```
-
-### TD-013: Hibernate DDL Auto-Update
-
-**Decision:** Use `spring.jpa.hibernate.ddl-auto=update` for development.
-
-**Rationale:**
-- Automatic schema synchronization during development
-- Faster iteration cycle
-- No manual migration scripts needed for MVP
-
-**Production Consideration:** Switch to `validate` and use Flyway/Liquibase for production.
-
-### TD-014: Docker Compose for Local Development
-
-**Decision:** Use Docker Compose for PostgreSQL instead of embedded database.
-
-**Rationale:**
-- Production-like environment locally
-- Consistent database across team
-- Easy to reset and manage
-- Spring Boot Docker Compose integration
-
-### TD-015: Comprehensive OpenAPI Documentation
-
-**Decision:** Extensive use of SpringDoc annotations for API documentation.
-
-**Rationale:**
-- Self-documenting API
-- Interactive testing via Swagger UI
-- Reduces need for separate documentation
-- Contract-first development support
-
-**Annotations Used:**
-- `@Tag`, `@Operation`, `@Parameter`
-- `@ApiResponse` with examples
-- `@Schema` for DTO documentation
+**Decision:** Extensive use of SpringDoc annotations on Controllers.
 
 ---
 
 ## Architecture
 
-### System Architecture Diagram
+### The Concentric Circles
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        Client Layer                          │
-│  (Web Browser, Mobile App, Postman, Swagger UI)             │
-└────────────────────────┬────────────────────────────────────┘
-                         │ HTTP/REST
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Spring Boot Application                   │
-│                                                               │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │              Controller Layer                           │ │
-│  │  • ProductController                                    │ │
-│  │  • CategoryController                                   │ │
-│  │  • OrderController                                      │ │
-│  │  (REST Endpoints, Request/Response Handling)            │ │
-│  └───────────────────────┬────────────────────────────────┘ │
-│                          │                                   │
-│  ┌───────────────────────▼────────────────────────────────┐ │
-│  │              Service Layer                              │ │
-│  │  • ProductService (Dynamic Queries)                     │ │
-│  │  • CategoryService                                      │ │
-│  │  • OrderService (Transaction Management)                │ │
-│  │  (Business Logic, Validation, DTOs)                     │ │
-│  └───────────────────────┬────────────────────────────────┘ │
-│                          │                                   │
-│  ┌───────────────────────▼────────────────────────────────┐ │
-│  │            Repository Layer                             │ │
-│  │  • ProductRepository (+ JpaSpecificationExecutor)       │ │
-│  │  • CategoryRepository                                   │ │
-│  │  • CustomerOrderRepository                              │ │
-│  │  • OrderItemRepository                                  │ │
-│  │  (Data Access, JPA Queries)                             │ │
-│  └───────────────────────┬────────────────────────────────┘ │
-│                          │                                   │
-│  ┌───────────────────────▼────────────────────────────────┐ │
-│  │              Domain Layer                               │ │
-│  │  • Category, Product, CustomerOrder, OrderItem          │ │
-│  │  • OrderStatus Enum                                     │ │
-│  │  (Entity Definitions, Relationships)                    │ │
-│  └─────────────────────────────────────────────────────────┘ │
-│                                                               │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │           Cross-Cutting Concerns                         │ │
-│  │  • GlobalExceptionHandler                                │ │
-│  │  • OpenApiConfig                                         │ │
-│  │  • ProductSpecifications                                 │ │
-│  │  • DataInitializer                                       │ │
-│  └─────────────────────────────────────────────────────────┘ │
-└────────────────────────┬────────────────────────────────────┘
-                         │ JDBC
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   PostgreSQL Database                        │
-│            (Categories, Products, Orders, OrderItems)        │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│    FRAMEWORKS & DRIVERS (outermost)                                         │
+│    ┌─────────────────────────────────────────────────────────────────────┐  │
+│    │                                                                     │  │
+│    │   INTERFACE ADAPTERS                                                │  │
+│    │   ┌─────────────────────────────────────────────────────────────┐   │  │
+│    │   │                                                             │   │  │
+│    │   │   USE CASES (Application Business Rules)                    │   │  │
+│    │   │   ┌─────────────────────────────────────────────────────┐   │   │  │
+│    │   │   │                                                     │   │   │  │
+│    │   │   │   ENTITIES (Enterprise Business Rules)              │   │   │  │
+│    │   │   │                                                     │   │   │  │
+│    │   │   └─────────────────────────────────────────────────────┘   │   │  │
+│    │   │                                                             │   │  │
+│    │   └─────────────────────────────────────────────────────────────┘   │  │
+│    │                                                                     │  │
+│    └─────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Component Interaction Flow
+### Dependency Diagram
 
 ```
-Request → Controller → Service → Repository → Database
-                 ↓         ↓
-              DTO Mapping  Business Logic
-                 ↓         ↓
-Response ← Controller ← Service
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                          FRAMEWORKS & DRIVERS                                    │
+│                                                                                  │
+│   framework/persistence/         framework/web/           framework/config/      │
+│   - JPA Entities                - Exception Handler      - BeanConfiguration     │
+│   - JPA Repositories            - OpenApiConfig          - DataInitializer       │
+│   - Data Mappers                                                                 │
+│   - Specifications                                                               │
+│                                                                                  │
+└───────────────────────────────────────┬─────────────────────────────────────────┘
+                                        │ implements
+                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                          INTERFACE ADAPTERS                                      │
+│                                                                                  │
+│   Controllers               Presenters               Gateway Impls               │
+│   - CategoryController      - CategoryPresenter      - CategoryGatewayImpl       │
+│   - ProductController       - ProductPresenter       - ProductGatewayImpl        │
+│   - OrderController         - OrderPresenter         - OrderGatewayImpl          │
+│                                                                                  │
+│   DTOs (Request/Response Models)                                                 │
+│   - CategoryResponseModel                                                        │
+│   - OrderCreateRequestModel                                                      │
+│                                                                                  │
+└───────────────────────────────────────┬─────────────────────────────────────────┘
+                                        │ uses
+                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              USE CASES                                           │
+│                                                                                  │
+│   Input Boundaries (Interfaces)        Output Boundaries (Gateways)              │
+│   - GetAllCategoriesUseCase           - CategoryGateway                          │
+│   - SearchProductsUseCase             - ProductGateway                           │
+│   - CreateOrderUseCase                - OrderGateway                             │
+│                                                                                  │
+│   Interactors (Implementations)        Input/Output Data                         │
+│   - GetAllCategoriesInteractor        - ProductSearchInputData                   │
+│   - SearchProductsInteractor          - CategoryOutputData                       │
+│   - CreateOrderInteractor             - OrderOutputData                          │
+│                                                                                  │
+└───────────────────────────────────────┬─────────────────────────────────────────┘
+                                        │ uses
+                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              ENTITIES                                            │
+│                                                                                  │
+│   Category        Product        Order        OrderItem        ShippingAddress   │
+│   (domain)        (domain)       (domain)     (domain)         (value object)    │
+│                                                                                  │
+│   - Business logic methods                                                       │
+│   - Validation rules                                                             │
+│   - No framework dependencies                                                    │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Database Schema
+
+(Schema remains the same as previous versions, managed by JPA Entities in the Framework layer)
 
 ### Entity Relationship Diagram (ERD)
 
@@ -422,61 +324,6 @@ Response ← Controller ← Service
                                └──────────────────────┘
 ```
 
-### Table Details
-
-#### categories
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | BIGINT | PK, AUTO_INCREMENT | Unique category identifier |
-| name | VARCHAR(100) | NOT NULL | Category name |
-| description | VARCHAR(500) | NULL | Category description |
-| active | BOOLEAN | NOT NULL, DEFAULT true | Soft delete flag |
-| created_at | TIMESTAMP | NOT NULL | Creation timestamp |
-
-#### products
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | BIGINT | PK, AUTO_INCREMENT | Unique product identifier |
-| name | VARCHAR(200) | NOT NULL | Product name |
-| description | VARCHAR(1000) | NULL | Product description |
-| price | DECIMAL(12,2) | NOT NULL | Product price |
-| stock | INTEGER | NOT NULL | Available quantity |
-| image_url | VARCHAR(500) | NULL | Product image URL |
-| active | BOOLEAN | NOT NULL, DEFAULT true | Soft delete flag |
-| category_id | BIGINT | FK → categories(id), NOT NULL | Parent category |
-
-#### orders
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | BIGINT | PK, AUTO_INCREMENT | Unique order identifier |
-| customer_id | BIGINT | NOT NULL | Customer identifier |
-| status | VARCHAR(20) | NOT NULL | Order status enum |
-| subtotal | DECIMAL(12,2) | NOT NULL | Order subtotal |
-| tax | DECIMAL(12,2) | NOT NULL | Tax amount (8%) |
-| total | DECIMAL(12,2) | NOT NULL | Total amount |
-| created_at | TIMESTAMP | NOT NULL | Order creation time |
-| shipping_street | VARCHAR(200) | NOT NULL | Shipping address street |
-| shipping_city | VARCHAR(100) | NOT NULL | Shipping address city |
-| shipping_state | VARCHAR(100) | NULL | Shipping address state |
-| shipping_zip_code | VARCHAR(20) | NOT NULL | Shipping address zip |
-| shipping_country | VARCHAR(100) | NOT NULL | Shipping address country |
-
-#### order_items
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | BIGINT | PK, AUTO_INCREMENT | Unique order item identifier |
-| order_id | BIGINT | FK → orders(id), NOT NULL | Parent order |
-| product_id | BIGINT | FK → products(id), NOT NULL | Ordered product |
-| quantity | INTEGER | NOT NULL | Quantity ordered |
-| unit_price | DECIMAL(12,2) | NOT NULL | Price at order time |
-| subtotal | DECIMAL(12,2) | NOT NULL | Line item subtotal |
-
-### Relationships
-
-- **Category ↔ Product**: One-to-Many (One category has many products)
-- **CustomerOrder ↔ OrderItem**: One-to-Many (One order has many items)
-- **Product ↔ OrderItem**: One-to-Many (One product can appear in many order items)
-
 ---
 
 ## API Endpoints
@@ -494,236 +341,110 @@ http://localhost:8080/api/v1
 | GET | `/products` | Search products with filters |
 | POST | `/orders` | Create a new order |
 
-### 1. Get All Categories
-
-**Endpoint:** `GET /api/v1/categories`
-
-**Description:** Retrieves all active product categories.
-
-**Response:** `200 OK`
-```json
-[
-  {
-    "id": 1,
-    "name": "Electronics",
-    "description": "Electronic devices and accessories",
-    "active": true,
-    "createdAt": "2025-11-24T10:30:00Z"
-  }
-]
-```
-
-### 2. Search Products
-
-**Endpoint:** `GET /api/v1/products`
-
-**Description:** Search and filter products with pagination.
-
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| categoryId | Long | No | Filter by category ID |
-| name | String | No | Partial name match (case-insensitive) |
-| minPrice | BigDecimal | No | Minimum price filter |
-| maxPrice | BigDecimal | No | Maximum price filter |
-| inStock | Boolean | No | Filter in-stock products |
-| active | Boolean | No | Filter active products (default: true) |
-| page | Integer | No | Page number (default: 0) |
-| size | Integer | No | Page size (default: 20) |
-| sort | String | No | Sort criteria (e.g., "price,asc") |
-
-**Example Request:**
-```
-GET /api/v1/products?categoryId=1&maxPrice=500&inStock=true&sort=price,asc
-```
-
-**Response:** `200 OK`
-```json
-{
-  "content": [
-    {
-      "id": 1,
-      "name": "Wireless Headphones",
-      "description": "Premium noise-canceling headphones",
-      "price": 149.99,
-      "categoryId": 1,
-      "categoryName": "Electronics",
-      "stock": 45,
-      "imageUrl": "https://example.com/images/headphones.jpg",
-      "active": true
-    }
-  ],
-  "totalElements": 10,
-  "totalPages": 1,
-  "number": 0,
-  "size": 20
-}
-```
-
-### 3. Create Order
-
-**Endpoint:** `POST /api/v1/orders`
-
-**Description:** Create a new customer order.
-
-**Request Body:**
-```json
-{
-  "customerId": 42,
-  "items": [
-    {
-      "productId": 1,
-      "quantity": 2
-    },
-    {
-      "productId": 5,
-      "quantity": 1
-    }
-  ],
-  "shippingAddress": {
-    "street": "123 Main Street",
-    "city": "New York",
-    "state": "NY",
-    "zipCode": "10001",
-    "country": "USA"
-  }
-}
-```
-
-**Response:** `201 Created`
-```json
-{
-  "orderId": 1001,
-  "status": "PENDING",
-  "items": [
-    {
-      "productId": 1,
-      "productName": "Wireless Headphones",
-      "quantity": 2,
-      "unitPrice": 149.99,
-      "subtotal": 299.98
-    }
-  ],
-  "subtotal": 299.98,
-  "tax": 24.00,
-  "total": 323.98,
-  "createdAt": "2025-11-24T16:30:00Z"
-}
-```
-
-**Error Responses:**
-- `400 Bad Request` - Validation errors, invalid product ID
-- `404 Not Found` - Category not found
-- `409 Conflict` - Insufficient stock, inactive product
-- `500 Internal Server Error` - Server error
+(Detailed endpoint documentation matches the PRD)
 
 ---
 
 ## Sequence Diagrams
 
-### 1. Get Products with Filtering
+### 1. Get Products with Filtering (Clean Architecture Flow)
 
 ```
-Client          Controller       Service         Repository      Database
-  │                 │               │                │              │
-  │─GET /products──►│               │                │              │
-  │  ?categoryId=1  │               │                │              │
-  │                 │               │                │              │
-  │                 │─search()─────►│                │              │
-  │                 │  (filter)     │                │              │
-  │                 │               │                │              │
-  │                 │               │──validate─────►│              │
-  │                 │               │  category      │              │
-  │                 │               │                │──SELECT────►│
-  │                 │               │                │◄─category───│
-  │                 │               │◄───────────────│              │
-  │                 │               │                │              │
-  │                 │               │─build specs───►│              │
-  │                 │               │  (Specification.allOf)        │
-  │                 │               │                │              │
-  │                 │               │─findAll()─────►│              │
-  │                 │               │  (spec, page)  │              │
-  │                 │               │                │──SELECT────►│
-  │                 │               │                │  WHERE...   │
-  │                 │               │                │◄─products───│
-  │                 │               │◄───────────────│              │
-  │                 │               │                │              │
-  │                 │               │─map to DTO────►│              │
-  │                 │◄──Page<DTO>───│                │              │
-  │◄─200 OK────────│               │                │              │
-  │  (products)     │               │                │              │
+Client      Controller      Interactor      Gateway       Repository      Database
+  │             │               │              │              │              │
+  │─GET────────►│               │              │              │              │
+  │             │               │              │              │              │
+  │             │─execute()────►│              │              │              │
+  │             │ (InputData)   │              │              │              │
+  │             │               │─findAll()───►│              │              │
+  │             │               │ (Criteria)   │              │              │
+  │             │               │              │─findAll()───►│              │
+  │             │               │              │ (Spec)       │──SELECT────►│
+  │             │               │              │              │◄─Entities───│
+  │             │               │              │◄─Domain Obj──│              │
+  │             │               │◄─PagedResult─│              │              │
+  │             │               │              │              │              │
+  │             │◄─OutputData───│              │              │              │
+  │             │               │              │              │              │
+  │─Present────►│               │              │              │              │
+  │             │               │              │              │              │
+  ◄─Response────│               │              │              │              │
 ```
 
-### 2. Create Order
+### 2. Create Order (Clean Architecture Flow)
 
 ```
-Client        Controller      Service       Repository     Database
-  │               │              │               │             │
-  │─POST /orders─►│              │               │             │
-  │  (request)    │              │               │             │
-  │               │              │               │             │
-  │               │─@Valid──────►│               │             │
-  │               │              │               │             │
-  │               │─createOrder()►│               │             │
-  │               │  (request)   │               │             │
-  │               │              │               │             │
-  │               │              │───@Transactional────────────┤
-  │               │              │               │             │
-  │               │              │─validate items►│             │
-  │               │              │               │             │
-  │               │              │─findById()────►│             │
-  │               │              │  (productIds) │──SELECT────►│
-  │               │              │               │◄─products───│
-  │               │              │◄──────────────│             │
-  │               │              │               │             │
-  │               │              │─check stock───│             │
-  │               │              │  & active     │             │
-  │               │              │               │             │
-  │               │              │─calculate─────│             │
-  │               │              │  totals       │             │
-  │               │              │               │             │
-  │               │              │─save(order)───►│             │
-  │               │              │               │──INSERT────►│
-  │               │              │               │  (orders)   │
-  │               │              │               │──INSERT────►│
-  │               │              │               │  (order_items)│
-  │               │              │◄──────────────│             │
-  │               │              │               │             │
-  │               │              │─update stock──►│             │
-  │               │              │               │──UPDATE────►│
-  │               │              │               │  (products) │
-  │               │              │◄──────────────│             │
-  │               │              │               │             │
-  │               │              │───commit transaction────────┤
-  │               │              │               │             │
-  │               │              │─map to DTO────│             │
-  │               │◄─OrderResponse│               │             │
-  │◄─201 Created──│              │               │             │
-  │  (order)      │              │               │             │
+Client      Controller      Interactor      Gateway       Repository      Database
+  │             │               │              │              │              │
+  │─POST───────►│               │              │              │              │
+  │             │               │              │              │              │
+  │             │─execute()────►│              │              │              │
+  │             │ (InputData)   │              │              │              │
+  │             │               │─findAll()───►│              │              │
+  │             │               │              │─findByIds()─►│              │
+  │             │               │◄─Products────│              │              │
+  │             │               │              │              │              │
+  │             │─Business Logic│              │              │              │
+  │             │ (Validation)  │              │              │              │
+  │             │               │              │              │              │
+  │             │               │─save()──────►│              │              │
+  │             │               │              │─save()──────►│──INSERT────►│
+  │             │               │◄─SavedOrder──│              │              │
+  │             │               │              │              │              │
+  │             │◄─OutputData───│              │              │              │
+  │             │               │              │              │              │
+  │─Present────►│               │              │              │              │
+  ◄─Response────│               │              │              │              │
 ```
 
-### 3. Get All Categories
+---
+
+## Project Structure
 
 ```
-Client       Controller      Service       Repository    Database
-  │              │              │               │            │
-  │─GET /cats───►│              │               │            │
-  │              │              │               │            │
-  │              │─findAll()───►│               │            │
-  │              │              │               │            │
-  │              │              │─findByActive─►│            │
-  │              │              │  True()       │            │
-  │              │              │               │──SELECT───►│
-  │              │              │               │  WHERE     │
-  │              │              │               │  active=true│
-  │              │              │               │◄─categories│
-  │              │              │◄──────────────│            │
-  │              │              │               │            │
-  │              │              │─stream().map()│            │
-  │              │              │  (to DTO)     │            │
-  │              │◄─List<DTO>───│               │            │
-  │◄─200 OK─────│              │               │            │
-  │  (categories)│              │               │            │
+src/main/java/app/quantun/architecture/
+├── ArchitectureApplication.java
+│
+├── entity/                                   # ENTITIES (innermost)
+│   ├── Category.java
+│   ├── Product.java
+│   ├── Order.java
+│   ├── OrderItem.java
+│   └── ...
+│
+├── usecase/                                  # USE CASES (Application Business Rules)
+│   ├── category/
+│   │   ├── GetAllCategoriesUseCase.java
+│   │   ├── GetAllCategoriesInteractor.java
+│   │   └── CategoryOutputData.java
+│   ├── product/
+│   │   ├── SearchProductsUseCase.java
+│   │   ├── SearchProductsInteractor.java
+│   │   └── ...
+│   ├── order/
+│   │   ├── CreateOrderUseCase.java
+│   │   ├── CreateOrderInteractor.java
+│   │   └── ...
+│   └── gateway/                             # Data access interfaces
+│       └── ...
+│
+├── interface_adapter/                        # INTERFACE ADAPTERS
+│   ├── controller/                          # Controllers
+│   ├── presenter/                           # Presenters
+│   ├── gateway/                             # Gateway Implementations
+│   └── dto/                                 # View Models
+│
+├── framework/                                # FRAMEWORKS & DRIVERS (outermost)
+│   ├── config/
+│   ├── persistence/
+│   │   ├── entity/                          # JPA Entities
+│   │   ├── repository/
+│   │   └── mapper/
+│   └── web/
+│       └── exception/
+│
+└── shared/                                   # Cross-cutting utilities
+    └── exception/
 ```
 
 ---
@@ -734,173 +455,15 @@ Client       Controller      Service       Repository    Database
 
 - **Java 21** or higher
 - **Docker** and **Docker Compose**
-- **Gradle** (or use included wrapper)
+- **Gradle**
 
 ### Installation & Running
 
-#### 1. Clone the Repository
-```bash
-git clone <repository-url>
-cd architecture
-```
-
-#### 2. Start PostgreSQL with Docker Compose
-```bash
-docker-compose up -d
-```
-
-This will start PostgreSQL on `localhost:5432` with:
-- Database: `mydatabase`
-- Username: `myuser`
-- Password: `secret`
-
-#### 3. Run the Application
-```bash
-./gradlew bootRun
-```
-
-Or on Windows:
-```bash
-gradlew.bat bootRun
-```
+1. **Clone the Repository**
+2. **Start Database**: `docker-compose up -d`
+3. **Run Application**: `./gradlew bootRun`
 
 The application will start on `http://localhost:8080`.
-
-#### 4. Initialize Sample Data
-
-Sample data is automatically loaded on first startup via `DataInitializer`:
-- 6 product categories
-- 30+ computer store products
-
-### Configuration
-
-**Database Configuration** (`application.properties`):
-```properties
-spring.datasource.url=jdbc:postgresql://localhost:5432/mydatabase
-spring.datasource.username=myuser
-spring.datasource.password=secret
-spring.jpa.hibernate.ddl-auto=update
-```
-
-**Actuator Endpoints:**
-```properties
-management.endpoints.web.exposure.include=health,info
-```
-
-Access health check: `http://localhost:8080/actuator/health`
-
----
-
-## API Documentation
-
-### Swagger UI
-
-Interactive API documentation is available at:
-
-```
-http://localhost:8080/swagger-ui.html
-```
-
-### OpenAPI Specification
-
-- **JSON:** `http://localhost:8080/v3/api-docs`
-- **YAML:** `http://localhost:8080/v3/api-docs.yaml`
-
-### Testing with Swagger UI
-
-1. Navigate to `http://localhost:8080/swagger-ui.html`
-2. Explore available endpoints organized by tags (Categories, Products, Orders)
-3. Click on any endpoint to expand details
-4. Click "Try it out" to test endpoints interactively
-5. Enter parameters and click "Execute"
-6. View response body, status code, and headers
-
----
-
-## Project Structure
-
-```
-architecture/
-├── src/
-│   ├── main/
-│   │   ├── java/app/quantun/architecture/
-│   │   │   ├── config/
-│   │   │   │   ├── DataInitializer.java
-│   │   │   │   └── OpenApiConfig.java
-│   │   │   ├── domain/
-│   │   │   │   ├── Category.java
-│   │   │   │   ├── Product.java
-│   │   │   │   ├── CustomerOrder.java
-│   │   │   │   ├── OrderItem.java
-│   │   │   │   └── OrderStatus.java
-│   │   │   ├── dto/
-│   │   │   │   ├── CategoryDTO.java
-│   │   │   │   ├── ProductDTO.java
-│   │   │   │   ├── ProductFilter.java
-│   │   │   │   └── order/
-│   │   │   │       ├── OrderCreateRequest.java
-│   │   │   │       ├── OrderItemRequest.java
-│   │   │   │       ├── OrderItemResponse.java
-│   │   │   │       ├── OrderResponse.java
-│   │   │   │       └── ShippingAddressDTO.java
-│   │   │   ├── exception/
-│   │   │   │   ├── GlobalExceptionHandler.java
-│   │   │   │   ├── NotFoundException.java
-│   │   │   │   ├── BadRequestException.java
-│   │   │   │   └── ConflictException.java
-│   │   │   ├── repository/
-│   │   │   │   ├── CategoryRepository.java
-│   │   │   │   ├── ProductRepository.java
-│   │   │   │   ├── CustomerOrderRepository.java
-│   │   │   │   └── OrderItemRepository.java
-│   │   │   ├── service/
-│   │   │   │   ├── CategoryService.java
-│   │   │   │   ├── ProductService.java
-│   │   │   │   └── OrderService.java
-│   │   │   ├── spec/
-│   │   │   │   └── ProductSpecifications.java
-│   │   │   ├── web/
-│   │   │   │   ├── CategoryController.java
-│   │   │   │   ├── ProductController.java
-│   │   │   │   └── OrderController.java
-│   │   │   └── ArchitectureApplication.java
-│   │   └── resources/
-│   │       └── application.properties
-│   └── test/
-├── docs/
-│   └── Shopping_Cart_API_PRD.md
-├── build.gradle
-├── compose.yaml
-└── README.md
-```
-
----
-
-## Development Notes
-
-### Best Practices Implemented
-
-1. **Clean Architecture** - Clear separation of concerns across layers
-2. **SOLID Principles** - Single responsibility, dependency injection
-3. **DRY Principle** - Specification pattern eliminates query duplication
-4. **Immutable DTOs** - Using Java records for thread-safe data transfer
-5. **Validation** - Jakarta Validation annotations at DTO level
-6. **Exception Handling** - Centralized, consistent error responses
-7. **Transaction Management** - Proper `@Transactional` boundaries
-8. **API Documentation** - Comprehensive OpenAPI annotations
-
-### Future Enhancements
-
-- Add authentication/authorization (Spring Security + JWT)
-- Implement caching (Redis)
-- Add comprehensive unit and integration tests
-- Implement optimistic locking with `@Version`
-- Add event-driven architecture (Spring Events/Kafka)
-- Implement database migrations (Flyway/Liquibase)
-- Add monitoring and metrics (Prometheus/Grafana)
-- Implement rate limiting
-- Add search with Elasticsearch
-- Support multiple payment methods
 
 ---
 
